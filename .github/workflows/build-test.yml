@@ -5,9 +5,9 @@ name: Build/Test All Projects
 
 on:
   push:
-    branches: [main]
+    branches: [main, sq-test]
   pull_request:
-    branches: [main]
+    branches: [main, sq-test]
 
 jobs:
   build:
