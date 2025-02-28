@@ -73,7 +73,7 @@
     "preview": "vite preview",
     "build": "vite build",
     "test": "vitest",
-    "test:coverage": "vitest",
+    "test:coverage": "vitest run --coverage",
     "type-check": "tsc --build"
   },
   "browserslist": {
