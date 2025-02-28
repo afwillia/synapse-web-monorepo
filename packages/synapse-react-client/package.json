@@ -226,7 +226,6 @@
     "util": "^0.12.5",
     "vite": "^5.4.3",
     "vite-config": "workspace:*",
-    "@vitest/coverage-v8": "^1.6.0",
     "weak-napi": "^2.0.2",
     "whatwg-fetch": "^3.6.20"
   },
