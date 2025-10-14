@@ -30,6 +30,7 @@ vi.mock('./DataGridWebSocket', () => ({
       socket: { readyState: WebSocket.OPEN },
       sendPatch: vi.fn(),
       disconnect: vi.fn(),
+      getModel: vi.fn().mockReturnValue(null), // Add getModel method
     })),
 }))
 
@@ -125,7 +126,7 @@ describe('useDataGridWebSocket', () => {
     expect(result.current.websocketInstance!.disconnect).not.toHaveBeenCalled()
   })
 
-  it('should call disconnect and reset model on unmount', async () => {
+  it('should call disconnect on unmount', async () => {
     const { result, unmount } = renderHook(() => useDataGridWebSocket(), {
       wrapper: createWrapper(),
     })
@@ -140,21 +141,110 @@ describe('useDataGridWebSocket', () => {
       expect(result.current.websocketInstance).not.toBeNull()
     })
 
-    // Simulate model creation
-    MockDataGridWebSocket.mock.lastCall![0].onModelCreate!(
-      Model.create({
-        foo: 'bar',
-      }) as unknown as GridModel,
-    )
+    const websocketInstance = result.current.websocketInstance!
 
     // call under test
     act(() => {
       unmount()
     })
 
-    await waitFor(() => {
-      expect(result.current.websocketInstance!.disconnect).toHaveBeenCalled()
-      expect(result.current.model).toBeNull()
+    // Verify disconnect was called (unmounting destroys all state, but cleanup ran)
+    expect(websocketInstance.disconnect).toHaveBeenCalled()
+  })
+
+  it('should persist model across reconnections to same session/replica', async () => {
+    const { result } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
     })
+
+    const testModel = Model.create({ foo: 'bar' }) as unknown as GridModel
+
+    // First connection
+    act(() => {
+      result.current.connect(1, 'session-123')
+    })
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+    })
+
+    // Simulate model creation
+    act(() => {
+      MockDataGridWebSocket.mock.lastCall![0].onModelCreate!(testModel)
+    })
+
+    expect(result.current.model).toEqual(testModel)
+
+    // Mock getModel to return the test model for cleanup
+    const firstInstance = result.current.websocketInstance!
+    firstInstance.getModel = vi.fn().mockReturnValue(testModel)
+
+    // Simulate reconnection to same session/replica
+    act(() => {
+      result.current.connect(1, 'session-123')
+    })
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBe(firstInstance)
+    })
+
+    // Verify that the new WebSocket instance was created with the persisted model
+    const lastCall = MockDataGridWebSocket.mock.lastCall![0]
+    expect(lastCall.model).toEqual(testModel)
+  })
+
+  it('should reset model when connecting to different session/replica', async () => {
+    const { result } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
+    })
+
+    const testModel = Model.create({ foo: 'bar' }) as unknown as GridModel
+
+    // First connection to session-123, replica 1
+    act(() => {
+      result.current.connect(1, 'session-123')
+    })
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+    })
+
+    // Simulate model creation
+    act(() => {
+      MockDataGridWebSocket.mock.lastCall![0].onModelCreate!(testModel)
+    })
+
+    expect(result.current.model).toEqual(testModel)
+
+    // Connect to different session
+    act(() => {
+      result.current.connect(1, 'session-456')
+    })
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+    })
+
+    // Model should be reset and new connection should start with null
+    const lastCall = MockDataGridWebSocket.mock.lastCall![0]
+    expect(lastCall.model).toBeNull()
+
+    // Reset model for next test
+    act(() => {
+      MockDataGridWebSocket.mock.lastCall![0].onModelCreate!(testModel)
+    })
+
+    // Connect to different replica (same session)
+    act(() => {
+      result.current.connect(2, 'session-456')
+    })
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+    })
+
+    // Model should be reset again
+    const finalCall = MockDataGridWebSocket.mock.lastCall![0]
+    expect(finalCall.model).toBeNull()
   })
 })
