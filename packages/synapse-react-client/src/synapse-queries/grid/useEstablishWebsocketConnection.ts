@@ -11,6 +11,7 @@ interface EstablishWebsocketParams {
     onGridReady?: () => void
     onStatusChange?: (open: boolean) => void
     onModelCreate?: (model: GridModel) => void
+    model?: GridModel | null
   }
 }
 
