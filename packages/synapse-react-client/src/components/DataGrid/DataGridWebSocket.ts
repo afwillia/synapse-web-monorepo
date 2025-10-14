@@ -23,8 +23,9 @@ type DataGridWebSocketConstructorArgs = {
   onGridReady?: () => void
   onStatusChange?: (isOpen: boolean, instance: DataGridWebSocket) => void
   onModelCreate?: (model: GridModel) => void
-  maxPayloadSizeBytes?: number // <-- allow injection for tests
-  socket?: WebSocket // <-- allow injection for tests
+  maxPayloadSizeBytes?: number
+  socket?: WebSocket
+  model?: GridModel | null
 }
 
 // API Gateway WebSocket payload size limit is 32 KB per message
@@ -54,6 +55,7 @@ export class DataGridWebSocket {
       onModelCreate,
       maxPayloadSizeBytes,
       socket,
+      model,
     } = args
     this.messageCounter = new MessageCounter()
     this.replicaId = replicaId
@@ -90,6 +92,9 @@ export class DataGridWebSocket {
     if (onStatusChange) {
       this.onStatusChange = onStatusChange
     }
+
+    // Restore existing model if provided
+    this.model = model || null
   }
 
   public disconnect() {
@@ -99,6 +104,10 @@ export class DataGridWebSocket {
     } else {
       console.warn('WebSocket is not open. No action taken.')
     }
+  }
+
+  public getModel(): GridModel | null {
+    return this.model
   }
 
   private messageHandler = (message: JsonRxMessage) => {
@@ -151,17 +160,21 @@ export class DataGridWebSocket {
     // [8, <message>]
     else if (message instanceof JsonRxNotification) {
       const methodName = message.getMethodName()
-      // Clocks are in sync, no further action needed
       console.debug('Message received from server:', methodName)
+
       if (methodName === 'ping') {
-        // Handle ping response
         console.debug('Received ping response from server')
       }
+
       if (methodName === 'connected') {
-        // Handle connected response
         console.debug('Server ready to receive patches')
-        this.sendSyncMessage()
+        const verbModel = this.model
+          ? this.verboseEncoder.encode(this.model)
+          : null
+        // Send the persisted clock time if model exists, otherwise send empty sync
+        this.sendSyncMessage(verbModel?.time)
       }
+
       if (methodName === 'error') {
         // Handle error response
         console.warn('Error from server:', message.getPayload())
