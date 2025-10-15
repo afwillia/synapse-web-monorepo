@@ -98,6 +98,19 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       }
     }, [replicaId, session?.sessionId, connect])
 
+    // Reset grid state when model is reset (new session/replica)
+    useEffect(() => {
+      if (model === null) {
+        // Clear any grid-specific state when starting a new session
+        setLastSelection(null)
+        setSelectedRowIndex(null)
+        // Clear active cell if grid exists
+        if (gridRef.current) {
+          gridRef.current.setActiveCell(null)
+        }
+      }
+    }, [model])
+
     const { data: jsonSchema } = useGetSchema(
       session?.gridJsonSchema$Id ?? '',
       {
