@@ -134,14 +134,7 @@ export function useDataGridWebSocket() {
 
   useEffect(() => {
     return () => {
-      if (websocketInstance) {
-        // Get the latest model state before disconnecting
-        const currentModel = websocketInstance.getModel()
-        if (currentModel) {
-          setModel(currentModel)
-        }
-        websocketInstance.disconnect()
-      }
+      websocketInstance?.disconnect()
     }
   }, [websocketInstance])
 
