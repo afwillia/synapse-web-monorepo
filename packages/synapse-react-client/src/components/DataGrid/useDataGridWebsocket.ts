@@ -1,9 +1,120 @@
 import { GridModel } from '@/components/DataGrid/DataGridTypes'
 import { useCRDTModelView } from '@/components/DataGrid/useCRDTModelView'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { DataGridWebSocket } from './DataGridWebSocket'
 import { useEstablishWebsocketConnection } from '@/synapse-queries/grid/useEstablishWebsocketConnection'
 import { useDocumentVisibility } from '@react-hookz/web'
+
+// State type
+interface WebSocketState {
+  model: GridModel | null
+  isGridReady: boolean
+  isConnected: boolean
+  isConnecting: boolean
+  connectionParams: {
+    replicaId: number
+    sessionId: string
+  } | null
+  websocketInstance: DataGridWebSocket | null
+  connectionAttemptId: number | null
+  connectionError: unknown | null
+}
+
+// Action types
+type WebSocketAction =
+  | {
+      type: 'CONNECT_REQUESTED'
+      payload: { replicaId: number; sessionId: string; attemptId: number }
+    }
+  | { type: 'CONNECTION_ESTABLISHED'; payload: DataGridWebSocket }
+  | { type: 'CONNECTION_OPENED' }
+  | { type: 'CONNECTION_CLOSED' }
+  | { type: 'GRID_READY' }
+  | { type: 'MODEL_CREATED'; payload: GridModel }
+  | { type: 'CONNECTION_ERROR'; payload: unknown }
+
+// Reducer function
+function websocketReducer(
+  state: WebSocketState,
+  action: WebSocketAction,
+): WebSocketState {
+  switch (action.type) {
+    case 'CONNECT_REQUESTED': {
+      const isSameConnection =
+        state.connectionParams &&
+        state.connectionParams.replicaId === action.payload.replicaId &&
+        state.connectionParams.sessionId === action.payload.sessionId
+
+      return {
+        ...state,
+        connectionParams: {
+          replicaId: action.payload.replicaId,
+          sessionId: action.payload.sessionId,
+        },
+        isGridReady: isSameConnection ? state.isGridReady : false,
+        model: isSameConnection ? state.model : null,
+        isConnected: false,
+        isConnecting: false,
+        connectionAttemptId: action.payload.attemptId,
+        connectionError: null,
+      }
+    }
+
+    case 'CONNECTION_ESTABLISHED':
+      return {
+        ...state,
+        websocketInstance: action.payload,
+        isConnecting: true,
+      }
+
+    case 'CONNECTION_OPENED':
+      return {
+        ...state,
+        isConnected: true,
+        isConnecting: false,
+      }
+
+    case 'CONNECTION_CLOSED':
+      return {
+        ...state,
+        isConnected: false,
+        isConnecting: false,
+      }
+
+    case 'GRID_READY':
+      return {
+        ...state,
+        isGridReady: true,
+      }
+
+    case 'MODEL_CREATED':
+      return {
+        ...state,
+        model: action.payload,
+      }
+
+    case 'CONNECTION_ERROR':
+      return {
+        ...state,
+        connectionError: action.payload,
+        isConnecting: false,
+      }
+
+    default:
+      return state
+  }
+}
+
+export const initialWebSocketState: WebSocketState = {
+  model: null,
+  isGridReady: false,
+  isConnected: false,
+  isConnecting: false,
+  connectionParams: null,
+  websocketInstance: null,
+  connectionAttemptId: null,
+  connectionError: null,
+}
 
 /**
  * Custom hook to manage a DataGrid WebSocket connection.
@@ -15,136 +126,170 @@ import { useDocumentVisibility } from '@react-hookz/web'
  *   - Grid model updates and snapshot tracking
  */
 export function useDataGridWebSocket() {
-  const [model, setModel] = useState<GridModel | null>(null)
-  const [isGridReady, setIsGridReady] = useState(false)
-  // TODO: Connection status could be derived from a `useSyncExternalStore` subscribed to the WebSocket instance
-  const [isConnected, setIsConnected] = useState(false)
-  const [connectionParams, setConnectionParams] = useState<{
-    replicaId: number
-    sessionId: string
-  } | null>(null)
-  // Track the last connection parameters to detect changes - use ref to avoid callback recreation
-  const lastConnectionParamsRef = useRef<{
-    replicaId: number
-    sessionId: string
-  } | null>(null)
+  const [state, dispatch] = useReducer(websocketReducer, initialWebSocketState)
 
-  // Keep a ref to current model to avoid stale closures
-  const currentModelRef = useRef<GridModel | null>(model)
+  const connectionAttemptCounter = useRef(0)
+  const activeConnectionAttemptIdRef = useRef<number | null>(null)
 
-  // Update the ref whenever model changes
-  useEffect(() => {
-    currentModelRef.current = model
-  }, [model])
+  const modelSnapshot = useCRDTModelView(state.model)
 
-  const modelSnapshot = useCRDTModelView(model)
-  const [websocketInstance, setWebSocketInstance] =
-    useState<DataGridWebSocket | null>(null)
-
-  const isVisible = useDocumentVisibility()
+  const isDocumentVisible = useDocumentVisibility()
 
   const {
     mutateAsync: establishWebsocketConnection,
     isPending: isEstablishingWebsocketConnection,
     error: errorEstablishingWebsocketConnection,
     presignedUrl,
+    reset: resetEstablishWebsocketConnection,
+    clearPresignedUrl,
   } = useEstablishWebsocketConnection()
 
   // Update model creation handler - only set model, don't reset to null on disconnect
-  const handleModelCreate = useCallback((newModel: GridModel) => {
-    setModel(newModel)
-  }, [])
+  const handleModelCreate = useCallback(
+    (newModel: GridModel) => {
+      dispatch({ type: 'MODEL_CREATED', payload: newModel })
+    },
+    [dispatch],
+  )
 
   // Memoize websocket options to prevent unnecessary re-renders (excluding model to avoid circular deps)
   const websocketOptionsWithoutModel = useMemo(
     () => ({
-      onGridReady: () => setIsGridReady(true),
-      onStatusChange: (open: boolean) => setIsConnected(open),
+      onGridReady: () => dispatch({ type: 'GRID_READY' }),
+      onStatusChange: (open: boolean) =>
+        dispatch({ type: open ? 'CONNECTION_OPENED' : 'CONNECTION_CLOSED' }),
       onModelCreate: handleModelCreate,
     }),
     [handleModelCreate],
   )
 
   // Initiate (or re-initiate) a connection
-  const connect = useCallback((replicaId: number, sessionId: string) => {
-    const newParams = { replicaId, sessionId }
-    const lastParams = lastConnectionParamsRef.current
+  const connect = useCallback(
+    (replicaId: number, sessionId: string) => {
+      resetEstablishWebsocketConnection()
 
-    // Check if we're connecting to a different session/replica
-    if (
-      lastParams &&
-      (lastParams.replicaId !== replicaId || lastParams.sessionId !== sessionId)
-    ) {
-      // Different connection - reset model to start fresh
-      setModel(null)
-    }
+      const isDifferentConnection =
+        !state.connectionParams ||
+        state.connectionParams.replicaId !== replicaId ||
+        state.connectionParams.sessionId !== sessionId
 
-    // Reset grid ready state when initiating any new connection
-    setIsGridReady(false)
-    setConnectionParams(newParams)
-    lastConnectionParamsRef.current = newParams
-  }, [])
+      if (isDifferentConnection) {
+        clearPresignedUrl()
+      }
 
-  const shouldEstablishWebsocketConnection = useMemo(
-    () =>
-      !!connectionParams &&
-      !isConnected &&
-      !isEstablishingWebsocketConnection &&
-      !errorEstablishingWebsocketConnection &&
-      isVisible,
+      connectionAttemptCounter.current += 1
+      const attemptId = connectionAttemptCounter.current
+
+      dispatch({
+        type: 'CONNECT_REQUESTED',
+        payload: { replicaId, sessionId, attemptId },
+      })
+    },
     [
-      connectionParams,
-      isConnected,
-      isEstablishingWebsocketConnection,
-      errorEstablishingWebsocketConnection,
-      isVisible,
+      dispatch,
+      state.connectionParams,
+      resetEstablishWebsocketConnection,
+      clearPresignedUrl,
+      connectionAttemptCounter,
     ],
   )
 
-  const establishConnectionCallback = useCallback(() => {
-    if (!shouldEstablishWebsocketConnection || !connectionParams) return
+  /**
+   * Establish the WebSocket connection when conditions are met.
+   * Uses the current model state at connection time for reconnections to the same session.
+   * Note: Changes to `model` alone do NOT trigger reconnection - only changes to connection
+   * params, visibility, or connection status will trigger a new connection attempt.
+   */
+  useEffect(() => {
+    // Don't attempt connection if conditions aren't met
+    const { connectionParams, connectionAttemptId } = state
 
-    // Always use the current model at connection time for reconnections to same session
-    const modelToUse = currentModelRef.current
+    if (
+      !connectionParams ||
+      connectionAttemptId == null ||
+      state.isConnected ||
+      state.isConnecting ||
+      isEstablishingWebsocketConnection ||
+      errorEstablishingWebsocketConnection ||
+      !isDocumentVisible
+    ) {
+      return
+    }
 
+    activeConnectionAttemptIdRef.current = connectionAttemptId
+
+    // Use current model state for reconnections to same session
+    // (model may have been created by a previous connection)
     establishWebsocketConnection({
       replicaId: connectionParams.replicaId,
       sessionId: connectionParams.sessionId,
       websocketOptions: {
         ...websocketOptionsWithoutModel,
-        model: modelToUse,
+        model: state.model, // Current model at connection time
       },
     })
-      .then(ws => setWebSocketInstance(ws))
-      .catch(err => console.error('Failed to establish WebSocket', err))
+      .then(ws => {
+        if (activeConnectionAttemptIdRef.current !== connectionAttemptId) {
+          ws.disconnect()
+          return
+        }
+
+        dispatch({ type: 'CONNECTION_ESTABLISHED', payload: ws })
+      })
+      .catch(err => {
+        dispatch({ type: 'CONNECTION_ERROR', payload: err })
+        console.error('Failed to establish WebSocket', err)
+      })
+
+    return undefined
   }, [
-    shouldEstablishWebsocketConnection,
-    connectionParams,
+    state.connectionParams,
+    state.connectionAttemptId,
+    state.isConnected,
+    state.isConnecting,
+    state.model,
+    isEstablishingWebsocketConnection,
+    errorEstablishingWebsocketConnection,
+    isDocumentVisible,
     establishWebsocketConnection,
     websocketOptionsWithoutModel,
   ])
 
-  /**
-   * Establish the WebSocket connection when conditions are met.
-   * Delegates to the mutation hook for presigned URL fetch, WebSocket creation, and retry logic.
-   */
+  const previousConnectionParams =
+    useRef<WebSocketState['connectionParams']>(null)
+
   useEffect(() => {
-    establishConnectionCallback()
-  }, [establishConnectionCallback])
+    const previous = previousConnectionParams.current
+    const current = state.connectionParams
+
+    if (
+      previous &&
+      current &&
+      (previous.replicaId !== current.replicaId ||
+        previous.sessionId !== current.sessionId)
+    ) {
+      state.websocketInstance?.disconnect()
+    }
+
+    previousConnectionParams.current = current
+  }, [state.connectionParams, state.websocketInstance])
 
   useEffect(() => {
     return () => {
-      websocketInstance?.disconnect()
+      state.websocketInstance?.disconnect()
+      activeConnectionAttemptIdRef.current = null
     }
-  }, [websocketInstance])
+  }, [state.websocketInstance])
 
   return {
-    isConnected,
-    websocketInstance,
-    isGridReady,
-    model,
+    isConnected: state.isConnected,
+    websocketInstance: state.websocketInstance,
+    isGridReady: state.isGridReady,
+    model: state.model,
     modelSnapshot,
     connect,
     presignedUrl,
+    errorEstablishingWebsocketConnection:
+      state.connectionError ?? errorEstablishingWebsocketConnection,
   }
 }
