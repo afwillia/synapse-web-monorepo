@@ -92,10 +92,34 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       presignedUrl,
     } = useDataGridWebSocket()
 
+    const lastConnectParamsRef = useRef<{
+      replicaId: number
+      sessionId: string
+    } | null>(null)
+
     useEffect(() => {
-      if (replicaId && session?.sessionId) {
-        connect(replicaId, session.sessionId)
+      if (replicaId == null || !session?.sessionId) {
+        lastConnectParamsRef.current = null
+        return
       }
+
+      const nextParams = {
+        replicaId,
+        sessionId: session.sessionId,
+      }
+
+      const prevParams = lastConnectParamsRef.current
+
+      if (
+        prevParams &&
+        prevParams.replicaId === nextParams.replicaId &&
+        prevParams.sessionId === nextParams.sessionId
+      ) {
+        return
+      }
+
+      lastConnectParamsRef.current = nextParams
+      connect(nextParams.replicaId, nextParams.sessionId)
     }, [replicaId, session?.sessionId, connect])
 
     // Reset grid state when model is reset (new session/replica)
