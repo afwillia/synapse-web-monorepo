@@ -2,7 +2,7 @@ import { GridModel } from '@/components/DataGrid/DataGridTypes'
 import { DataGridWebSocket } from '@/components/DataGrid/DataGridWebSocket'
 import { mocked } from '@storybook/test'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { useDataGridWebSocket } from './useDataGridWebsocket'
 import { Model } from 'json-joy/lib/json-crdt'
 import { createWrapper } from '@/testutils/TestingLibraryUtils'
@@ -14,11 +14,25 @@ vi.mock('./useCRDTModelView', () => ({
   ),
 }))
 
-// Mock useGridPresignedUrl
+const fetchPresignedUrlMock = vi.fn()
+
 vi.mock('@/synapse-queries/grid/useGridPresignedUrl', () => ({
   useGridPresignedUrl: () => ({
-    mutateAsync: vi.fn().mockResolvedValue('ws://mocked-url'),
+    mutateAsync: fetchPresignedUrlMock,
   }),
+}))
+
+type DocumentVisibility =
+  | 'visible'
+  | 'hidden'
+  | 'prerender'
+  | 'unloaded'
+  | undefined
+
+let documentVisibilityState: DocumentVisibility = 'visible'
+
+vi.mock('@react-hookz/web', () => ({
+  useDocumentVisibility: vi.fn(() => documentVisibilityState === 'visible'),
 }))
 
 // Mock DataGridWebSocket
@@ -37,6 +51,17 @@ vi.mock('./DataGridWebSocket', () => ({
 const MockDataGridWebSocket = mocked(DataGridWebSocket)
 
 describe('useDataGridWebSocket', () => {
+  beforeEach(() => {
+    fetchPresignedUrlMock.mockReset()
+    fetchPresignedUrlMock.mockResolvedValue('ws://mocked-url')
+    MockDataGridWebSocket.mockClear()
+    documentVisibilityState = 'visible'
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('should initialize with correct default state', () => {
     const { result } = renderHook(() => useDataGridWebSocket(), {
       wrapper: createWrapper(),
@@ -46,6 +71,7 @@ describe('useDataGridWebSocket', () => {
     expect(result.current.websocketInstance).toBeNull()
     expect(result.current.isGridReady).toBe(false)
     expect(result.current.modelSnapshot).toBeUndefined()
+    expect(result.current.errorEstablishingWebsocketConnection).toBeNull()
   })
 
   it('should create websocket and update state via callbacks', async () => {
@@ -93,6 +119,52 @@ describe('useDataGridWebSocket', () => {
     })
   })
 
+  it('should not re-request a websocket while the previous attempt is opening', async () => {
+    let resolveFetch: ((value: string) => void) | undefined
+    fetchPresignedUrlMock.mockImplementationOnce(
+      () =>
+        new Promise<string>(resolve => {
+          resolveFetch = resolve
+        }),
+    )
+
+    const { result } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
+    })
+
+    act(() => {
+      result.current.connect(999, 'session-pending')
+    })
+
+    await waitFor(() => expect(fetchPresignedUrlMock).toHaveBeenCalledTimes(1))
+    expect(resolveFetch).toBeDefined()
+
+    await act(async () => {
+      resolveFetch?.('ws://pending-url')
+      await Promise.resolve()
+    })
+
+    let initialWebsocketCallCount = 0
+    let initialFetchCallCount = 0
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+      initialWebsocketCallCount = MockDataGridWebSocket.mock.calls.length
+      initialFetchCallCount = fetchPresignedUrlMock.mock.calls.length
+      expect(initialWebsocketCallCount).toBeGreaterThanOrEqual(1)
+      expect(initialFetchCallCount).toBeGreaterThanOrEqual(1)
+    })
+
+    expect(result.current.isConnected).toBe(false)
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(fetchPresignedUrlMock).toHaveBeenCalledTimes(initialFetchCallCount)
+    expect(MockDataGridWebSocket).toHaveBeenCalledTimes(
+      initialWebsocketCallCount,
+    )
+  })
+
   it('should replace an existing websocket if connect is called again', async () => {
     const { result } = renderHook(() => useDataGridWebSocket(), {
       wrapper: createWrapper(),
@@ -124,6 +196,66 @@ describe('useDataGridWebSocket', () => {
     expect(result.current.websocketInstance).not.toBe(firstInstance)
     // Second instance should not be disconnected yet
     expect(result.current.websocketInstance!.disconnect).not.toHaveBeenCalled()
+  })
+
+  it('should disconnect stale websocket results when superseded by a newer attempt', async () => {
+    let resolveStale: ((value: string) => void) | undefined
+
+    fetchPresignedUrlMock.mockImplementation(({ sessionId }) => {
+      if (sessionId === 'session-stale') {
+        return new Promise<string>(resolve => {
+          resolveStale = resolve
+        })
+      }
+      if (sessionId === 'session-active') {
+        return Promise.resolve('ws://active-url')
+      }
+      return Promise.resolve('ws://mocked-url')
+    })
+
+    const { result } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
+    })
+
+    act(() => {
+      result.current.connect(1, 'session-stale')
+    })
+
+    await waitFor(() => expect(fetchPresignedUrlMock).toHaveBeenCalledTimes(1))
+    expect(resolveStale).toBeDefined()
+
+    act(() => {
+      result.current.connect(1, 'session-active')
+    })
+
+    await waitFor(() => expect(fetchPresignedUrlMock).toHaveBeenCalledTimes(2))
+
+    await waitFor(() => {
+      expect(result.current.websocketInstance).not.toBeNull()
+    })
+
+    const activeInstance = result.current.websocketInstance!
+    const callCountBeforeResolvingStale =
+      MockDataGridWebSocket.mock.calls.length
+
+    expect(activeInstance.disconnect).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveStale?.('ws://stale-url')
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(MockDataGridWebSocket.mock.calls.length).toBe(
+        callCountBeforeResolvingStale + 1,
+      ),
+    )
+
+    const staleInstance = MockDataGridWebSocket.mock.results.at(-1)!
+      .value as ReturnType<typeof MockDataGridWebSocket>
+
+    expect(staleInstance.disconnect).toHaveBeenCalledTimes(1)
+    expect(result.current.websocketInstance).toBe(activeInstance)
   })
 
   it('should call disconnect on unmount', async () => {
@@ -246,5 +378,53 @@ describe('useDataGridWebSocket', () => {
     // Model should be reset again
     const finalCall = MockDataGridWebSocket.mock.lastCall![0]
     expect(finalCall.model).toBeNull()
+  })
+
+  it('should not connect while document is hidden', async () => {
+    documentVisibilityState = 'hidden'
+
+    const { result, rerender } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
+    })
+
+    act(() => {
+      result.current.connect(1, 'session-visibility')
+    })
+
+    expect(fetchPresignedUrlMock).not.toHaveBeenCalled()
+
+    documentVisibilityState = 'visible'
+
+    act(() => {
+      rerender()
+    })
+
+    await waitFor(() => expect(fetchPresignedUrlMock).toHaveBeenCalled())
+  })
+
+  it('should clear presignedUrl when switching to a new session', async () => {
+    const { result } = renderHook(() => useDataGridWebSocket(), {
+      wrapper: createWrapper(),
+    })
+
+    act(() => {
+      result.current.connect(1, 'session-1')
+    })
+
+    await waitFor(() =>
+      expect(result.current.presignedUrl).toBe('ws://mocked-url'),
+    )
+
+    fetchPresignedUrlMock.mockResolvedValue('ws://mocked-url-2')
+
+    act(() => {
+      result.current.connect(2, 'session-2')
+    })
+
+    expect(result.current.presignedUrl).toBeNull()
+
+    await waitFor(() =>
+      expect(result.current.presignedUrl).toBe('ws://mocked-url-2'),
+    )
   })
 })
