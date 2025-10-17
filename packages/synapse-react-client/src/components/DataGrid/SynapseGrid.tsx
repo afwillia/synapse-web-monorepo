@@ -13,7 +13,6 @@ import {
 } from '@sage-bionetworks/synapse-client'
 import classNames from 'classnames'
 import { ClickableJsonCrdt } from 'clickable-json'
-import throttle from 'lodash-es/throttle'
 import {
   forwardRef,
   useCallback,
@@ -30,6 +29,7 @@ import { SelectionWithId } from 'react-datasheet-grid/dist/types'
 import FullWidthAlert from '../FullWidthAlert/FullWidthAlert'
 import { DataGridRow, GridModel, Operation } from './DataGridTypes'
 import { useGridUndoRedo } from './hooks/useGridUndoRedo'
+import { useThrottledSendPatch } from './hooks/useThrottledSendPatch'
 import { StartGridSession, StartGridSessionHandle } from './StartGridSession'
 import { useDataGridWebSocket } from './useDataGridWebsocket'
 import { applyModelChange, ModelChange } from './utils/applyModelChange'
@@ -162,14 +162,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       [modelSnapshot, schemaPropertiesInfo],
     )
 
-    const commit = useCallback(
-      throttle(() => {
-        console.log('Auto-committing changes')
-        // The model has already been updated in handleChange, just send the patch
-        websocketInstance?.sendPatch()
-      }, 500),
-      [websocketInstance],
-    )
+    const commit = useThrottledSendPatch(websocketInstance)
 
     const applyAndCommitChanges = useCallback(
       (model: GridModel, modelChanges: ModelChange[]) => {
