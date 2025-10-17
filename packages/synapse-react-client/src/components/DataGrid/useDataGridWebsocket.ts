@@ -206,7 +206,7 @@ export function useDataGridWebSocket() {
 
     if (
       !connectionParams ||
-      connectionAttemptId == null ||
+      connectionAttemptId === null ||
       state.isConnected ||
       state.isConnecting ||
       isEstablishingWebsocketConnection ||
@@ -240,8 +240,6 @@ export function useDataGridWebSocket() {
         dispatch({ type: 'CONNECTION_ERROR', payload: err })
         console.error('Failed to establish WebSocket', err)
       })
-
-    return undefined
   }, [
     state.connectionParams,
     state.connectionAttemptId,

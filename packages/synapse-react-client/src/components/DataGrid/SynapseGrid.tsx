@@ -98,7 +98,11 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
     } | null>(null)
 
     useEffect(() => {
-      if (replicaId == null || !session?.sessionId) {
+      if (
+        replicaId === null ||
+        replicaId === undefined ||
+        !session?.sessionId
+      ) {
         lastConnectParamsRef.current = null
         return
       }
