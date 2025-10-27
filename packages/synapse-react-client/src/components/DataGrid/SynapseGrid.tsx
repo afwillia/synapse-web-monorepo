@@ -390,6 +390,8 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                         gridSessionId={session.sessionId!}
                         usersReplicaId={replicaId!}
                         chatbotName="Grid Assistant"
+                        model={model}
+                        modelSnapshot={modelSnapshot}
                       />
                       {session.sourceEntityId && (
                         <UploadCsvToGridButton
