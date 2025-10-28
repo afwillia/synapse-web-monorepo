@@ -1,12 +1,16 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import DraggableDialog from '../DraggableDialog/DraggableDialog'
 import { SynapseChat } from './index'
 import { ChatInteraction } from './SynapseChat'
 import { AgentSession, AgentAccessLevel } from '@sage-bionetworks/synapse-types'
 import { GridAgentSessionContext } from '@sage-bionetworks/synapse-client'
-import { SelectionWithId } from 'react-datasheet-grid/dist/types'
 import { Box } from '@mui/material'
 import SelectionIndicator from './SelectionIndicator'
+import {
+  GridModel,
+  GridModelSnapshot,
+} from '@/components/DataGrid/DataGridTypes'
+import { convertReplicaSelectionToSelectionWithId } from '@/components/DataGrid/utils/convertReplicaSelectionToSelectionWithId'
 
 export type GridAgentChatProps = {
   gridSessionId: string
@@ -15,7 +19,8 @@ export type GridAgentChatProps = {
   initialMessage?: string
   open: boolean
   onClose: () => void
-  selection?: SelectionWithId | null
+  model?: GridModel | null
+  modelSnapshot?: GridModelSnapshot | null
 }
 
 export function GridAgentChat({
@@ -25,7 +30,8 @@ export function GridAgentChat({
   initialMessage,
   open,
   onClose,
-  selection,
+  model,
+  modelSnapshot,
 }: GridAgentChatProps) {
   // Storing state for the chat session here preserves chat history while the dialog is opened and closed.
   const [agentSession, setAgentSession] = useState<AgentSession | undefined>()
@@ -38,6 +44,26 @@ export function GridAgentChat({
     gridSessionId,
     usersReplicaId,
   }
+
+  // Extract the current user's selection from the model
+  const selection = useMemo(() => {
+    if (!model || !modelSnapshot || !usersReplicaId) {
+      return null
+    }
+
+    const replicaIdStr = usersReplicaId.toString()
+    const replicaSelection = modelSnapshot.selection?.[replicaIdStr]
+
+    if (!replicaSelection) {
+      return null
+    }
+
+    return convertReplicaSelectionToSelectionWithId(
+      replicaSelection,
+      model,
+      modelSnapshot,
+    )
+  }, [model, modelSnapshot, usersReplicaId])
 
   return (
     <DraggableDialog open={open} onClose={onClose} title={chatbotName}>
