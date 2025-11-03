@@ -144,9 +144,15 @@ function AutocompleteMultipleEnumCell({
           value={selectedOptions}
           inputValue={localInputState}
           onInputChange={(_, newInputValue) => {
+            console.log(
+              '%cfiring onInputChange',
+              'color: orange',
+              newInputValue,
+            )
             setLocalInputState(newInputValue)
           }}
-          onChange={(_e, newVal, _reason) => {
+          onChange={(_e, newVal, reason) => {
+            console.log('%cfiring onChange', 'color: pink', { newVal, reason })
             // Handle both selection/deselection and free text creation the same way
             const values = (newVal || []).map(item => {
               return typeof item === 'string'
@@ -156,7 +162,8 @@ function AutocompleteMultipleEnumCell({
             setRowData(values)
             setLocalInputState('')
           }}
-          onBlur={() => {
+          onBlur={event => {
+            console.log('%cfiring onBlur: ', 'color: green', event)
             if (localInputState.trim()) {
               const parsedValue = parseFreeTextGivenJsonSchemaType(
                 localInputState,
