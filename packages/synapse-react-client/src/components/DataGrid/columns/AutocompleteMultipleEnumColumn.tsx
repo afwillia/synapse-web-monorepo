@@ -22,20 +22,6 @@ export type AutocompleteMultipleEnumCellProps = Omit<
   limitTags?: number
 }
 
-type EnumOption = {
-  label: string
-  value: AutocompleteMultipleEnumOption
-}
-
-function createOptionFromValue(
-  value: AutocompleteMultipleEnumOption,
-): EnumOption {
-  return {
-    label: castCellValueToString(value),
-    value: value,
-  }
-}
-
 function isOptionArray(
   value:
     | AutocompleteMultipleEnumOption
@@ -75,22 +61,10 @@ export function AutocompleteMultipleEnumCell({
   const inputContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    let focusTimeoutId: number | undefined
-    if (active) {
-      setIsDropdownOpen(true)
-      focusTimeoutId = window.setTimeout(() => {
-        inputContainerRef.current?.querySelector('input')?.focus()
-      }, 0)
-    } else {
+    if (!active && isDropdownOpen) {
       setIsDropdownOpen(false)
     }
-
-    return () => {
-      if (focusTimeoutId !== undefined) {
-        window.clearTimeout(focusTimeoutId)
-      }
-    }
-  }, [active])
+  }, [active, isDropdownOpen])
 
   const safeRowData = createSafeRowData(
     rowData as
@@ -99,8 +73,6 @@ export function AutocompleteMultipleEnumCell({
       | null
       | undefined,
   )
-  const optionsWithLabels = choices.map(createOptionFromValue)
-  const selectedOptions = safeRowData.map(createOptionFromValue)
   const effectiveLimitTags = active ? -1 : limitTags
 
   // Create tooltip content showing all values
@@ -130,17 +102,12 @@ export function AutocompleteMultipleEnumCell({
           freeSolo
           disablePortal={false}
           limitTags={effectiveLimitTags}
-          options={optionsWithLabels}
-          getOptionLabel={option => {
-            // Handle both string (for freeSolo) and object options
-            return typeof option === 'string' ? option : option.label
-          }}
+          options={choices}
+          getOptionLabel={option =>
+            castCellValueToString(option as AutocompleteOption | undefined)
+          }
           isOptionEqualToValue={(option, value) => {
-            // Compare the actual values, not labels
-            const optionValue =
-              typeof option === 'string' ? option : option.value
-            const valueValue = typeof value === 'string' ? value : value.value
-            return isEqual(optionValue, valueValue)
+            return isEqual(option, value)
           }}
           open={active && isDropdownOpen}
           onOpen={() => {
@@ -151,7 +118,7 @@ export function AutocompleteMultipleEnumCell({
           onClose={() => {
             setIsDropdownOpen(false)
           }}
-          value={selectedOptions}
+          value={safeRowData}
           inputValue={localInputState}
           onInputChange={(_, newInputValue, reason) => {
             setLocalInputState(newInputValue)
@@ -164,14 +131,14 @@ export function AutocompleteMultipleEnumCell({
             const parsedValues = (newVal || []).map(item => {
               return typeof item === 'string'
                 ? parseFreeTextGivenJsonSchemaType(item, colType)
-                : item.value
+                : item
             })
             const filteredValues = parsedValues.filter(
               (value): value is AutocompleteMultipleEnumOption => !isNil(value),
             )
             setRowData(filteredValues)
             setLocalInputState('')
-            setIsDropdownOpen(false)
+            // Don't close dropdown - allow multiple selections
           }}
           onBlur={_event => {
             if (localInputState.trim()) {
@@ -186,15 +153,13 @@ export function AutocompleteMultipleEnumCell({
             }
             setIsDropdownOpen(false)
           }}
-          renderTags={(tagValue, getTagProps) =>
+          renderValue={(tagValue, getTagProps) =>
             tagValue.map((option, index) => {
               const { key, ...tagProps } = getTagProps({ index })
-              const optionValue =
-                typeof option === 'string' ? option : option.value
               return (
                 <GridAutocompleteChip
                   key={key}
-                  option={optionValue}
+                  option={option}
                   active={active}
                   {...tagProps}
                 />
