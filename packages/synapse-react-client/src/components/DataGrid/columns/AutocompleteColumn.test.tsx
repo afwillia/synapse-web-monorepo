@@ -1,8 +1,13 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import parseFreeTextGivenJsonSchemaType from '@/components/DataGrid/utils/parseFreeTextUsingJsonSchemaType'
-import { AutocompleteCell, AutocompleteCellProps } from './AutocompleteColumn'
+import {
+  AutocompleteCell,
+  AutocompleteCellProps,
+  AutocompleteOption,
+} from './AutocompleteColumn'
+import { useState } from 'react'
 
 describe('AutocompleteColumn', () => {
   it('should initialize and render AutocompleteCell with basic props', () => {
@@ -90,6 +95,68 @@ describe('AutocompleteColumn', () => {
 
     await waitFor(() => {
       expect(mockSetRowData).toHaveBeenCalledWith(expectedParsedValue)
+    })
+  })
+
+  it('should close the dropdown when focus moves to another grid cell', async () => {
+    const user = userEvent.setup()
+    const GridHarness = () => {
+      const [activeCell, setActiveCell] = useState<'auto' | 'plain'>('auto')
+      const [autoValue, setAutoValue] = useState<AutocompleteOption>('Option A')
+      const [plainValue, setPlainValue] = useState('Plain value')
+
+      return (
+        <div>
+          <div
+            data-testid="autocomplete-cell"
+            onClick={() => setActiveCell('auto')}
+          >
+            <AutocompleteCell
+              {...({
+                rowData: autoValue,
+                setRowData: (value: AutocompleteOption) => setAutoValue(value),
+                choices: ['Option A', 'Option B'],
+                colType: 'string',
+                active: activeCell === 'auto',
+              } as AutocompleteCellProps)}
+            />
+          </div>
+          <div
+            data-testid="plain-text-cell"
+            onClick={() => setActiveCell('plain')}
+          >
+            <input
+              data-testid="plain-text-cell-input"
+              value={plainValue}
+              onChange={event => setPlainValue(event.target.value)}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                padding: '0 10px',
+                backgroundColor: 'inherit',
+              }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    render(<GridHarness />)
+
+    const autocompleteInput = screen.getByRole('combobox')
+    await user.click(autocompleteInput)
+    fireEvent.change(autocompleteInput, { target: { value: 'Option B' } })
+
+    await waitFor(() => {
+      expect(autocompleteInput).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    const plainTextInput = screen.getByTestId('plain-text-cell-input')
+    await user.click(plainTextInput)
+
+    await waitFor(() => {
+      expect(autocompleteInput).toHaveAttribute('aria-expanded', 'false')
     })
   })
 })

@@ -12,10 +12,7 @@ import { GridAutocompleteChip } from './GridAutocompleteChip'
 import isNil from 'lodash-es/isNil'
 import isEqual from 'lodash-es/isEqual'
 
-export type AutocompleteMultipleEnumOption =
-  | AutocompleteOption
-  | unknown
-  | unknown[]
+export type AutocompleteMultipleEnumOption = AutocompleteOption
 
 export type AutocompleteMultipleEnumCellProps = Omit<
   AutocompleteCellProps,
@@ -39,52 +36,69 @@ function createOptionFromValue(
   }
 }
 
-function createSafeRowData(
-  rowData: AutocompleteMultipleEnumOption,
-): AutocompleteMultipleEnumOption[] {
-  if (Array.isArray(rowData)) {
-    return rowData
-  } else if (isNil(rowData)) {
-    return []
-  } else {
-    return [rowData]
-  }
+function isOptionArray(
+  value:
+    | AutocompleteMultipleEnumOption
+    | AutocompleteMultipleEnumOption[]
+    | null
+    | undefined,
+): value is AutocompleteMultipleEnumOption[] {
+  return Array.isArray(value)
 }
 
-function AutocompleteMultipleEnumCell({
+function createSafeRowData(
+  rowData:
+    | AutocompleteMultipleEnumOption
+    | AutocompleteMultipleEnumOption[]
+    | null
+    | undefined,
+): AutocompleteMultipleEnumOption[] {
+  if (isOptionArray(rowData)) {
+    return rowData
+  }
+  if (isNil(rowData)) {
+    return []
+  }
+  return [rowData]
+}
+
+export function AutocompleteMultipleEnumCell({
   rowData,
   setRowData,
   choices,
   colType,
   limitTags = 2,
   active,
-  stopEditing,
-  focus,
 }: AutocompleteMultipleEnumCellProps) {
   const [localInputState, setLocalInputState] = useState<string>('')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const inputContainerRef = useRef<HTMLDivElement>(null)
 
-  // Local state to programmatically control the Autocomplete's dropdown
-  const [open, setOpen] = useState(false)
-  const inputRef = useRef<HTMLDivElement>(null)
-
-  // This useEffect is the solution.
-  // It syncs the dropdown's open state with the grid's active state.
   useEffect(() => {
+    let focusTimeoutId: number | undefined
     if (active) {
-      // Cell just became active: open the menu and focus the input.
-      setOpen(true)
-      // Use a brief timeout to ensure the input is rendered and focusable
-      setTimeout(() => {
-        inputRef.current?.querySelector('input')?.focus()
+      setIsDropdownOpen(true)
+      focusTimeoutId = window.setTimeout(() => {
+        inputContainerRef.current?.querySelector('input')?.focus()
       }, 0)
     } else {
-      // Cell just became *inactive*: force the menu to close.
-      // This is what fires when you click another cell.
-      setOpen(false)
+      setIsDropdownOpen(false)
     }
-  }, [active]) // This effect re-runs every time the 'active' prop changes
 
-  const safeRowData = createSafeRowData(rowData)
+    return () => {
+      if (focusTimeoutId !== undefined) {
+        window.clearTimeout(focusTimeoutId)
+      }
+    }
+  }, [active])
+
+  const safeRowData = createSafeRowData(
+    rowData as
+      | AutocompleteMultipleEnumOption
+      | AutocompleteMultipleEnumOption[]
+      | null
+      | undefined,
+  )
   const optionsWithLabels = choices.map(createOptionFromValue)
   const selectedOptions = safeRowData.map(createOptionFromValue)
   const effectiveLimitTags = active ? -1 : limitTags
@@ -104,7 +118,7 @@ function AutocompleteMultipleEnumCell({
       disableHoverListener={active || safeRowData.length <= limitTags}
     >
       <div
-        ref={inputRef}
+        ref={inputContainerRef}
         style={{
           width: '100%',
           height: '100%',
@@ -128,52 +142,51 @@ function AutocompleteMultipleEnumCell({
             const valueValue = typeof value === 'string' ? value : value.value
             return isEqual(optionValue, valueValue)
           }}
-          open={open}
+          open={active && isDropdownOpen}
           onOpen={() => {
-            // Only allow opening if the cell is active
             if (active) {
-              setOpen(true)
+              setIsDropdownOpen(true)
             }
           }}
           onClose={() => {
-            // When the component *itself* decides to close (e.g., user hits Escape),
-            // we close the menu AND tell the grid to stop editing.
-            setOpen(false)
-            stopEditing()
+            setIsDropdownOpen(false)
           }}
           value={selectedOptions}
           inputValue={localInputState}
-          onInputChange={(_, newInputValue) => {
-            console.log(
-              '%cfiring onInputChange',
-              'color: orange',
-              newInputValue,
-            )
+          onInputChange={(_, newInputValue, reason) => {
             setLocalInputState(newInputValue)
+            if (reason === 'input' && active) {
+              setIsDropdownOpen(true)
+            }
           }}
-          onChange={(_e, newVal, reason) => {
-            console.log('%cfiring onChange', 'color: pink', { newVal, reason })
+          onChange={(_event, newVal) => {
             // Handle both selection/deselection and free text creation the same way
-            const values = (newVal || []).map(item => {
+            const parsedValues = (newVal || []).map(item => {
               return typeof item === 'string'
                 ? parseFreeTextGivenJsonSchemaType(item, colType)
                 : item.value
             })
-            setRowData(values)
+            const filteredValues = parsedValues.filter(
+              (value): value is AutocompleteMultipleEnumOption => !isNil(value),
+            )
+            setRowData(filteredValues)
             setLocalInputState('')
+            setIsDropdownOpen(false)
           }}
-          onBlur={event => {
-            console.log('%cfiring onBlur: ', 'color: green', event)
+          onBlur={_event => {
             if (localInputState.trim()) {
               const parsedValue = parseFreeTextGivenJsonSchemaType(
                 localInputState,
                 colType,
               )
-              setRowData([...safeRowData, parsedValue])
+              if (!isNil(parsedValue)) {
+                setRowData([...safeRowData, parsedValue])
+              }
               setLocalInputState('')
             }
+            setIsDropdownOpen(false)
           }}
-          renderValue={(tagValue, getTagProps) =>
+          renderTags={(tagValue, getTagProps) =>
             tagValue.map((option, index) => {
               const { key, ...tagProps } = getTagProps({ index })
               const optionValue =
@@ -271,7 +284,13 @@ export function autocompleteMultipleEnumColumn({
     )) as CellComponent,
     copyValue: ({ rowData }) => {
       // Convert array to comma-separated string
-      const safeRowData = createSafeRowData(rowData)
+      const safeRowData = createSafeRowData(
+        rowData as
+          | AutocompleteMultipleEnumOption
+          | AutocompleteMultipleEnumOption[]
+          | null
+          | undefined,
+      )
       return safeRowData.map(item => castCellValueToString(item)).join(',')
     },
     pasteValue: ({ value }) => {
@@ -294,7 +313,13 @@ export function autocompleteMultipleEnumColumn({
     keepFocus: true,
     ...(dynamicHeight && {
       cellClassName: ({ rowData }) => {
-        const safeRowData = createSafeRowData(rowData)
+        const safeRowData = createSafeRowData(
+          rowData as
+            | AutocompleteMultipleEnumOption
+            | AutocompleteMultipleEnumOption[]
+            | null
+            | undefined,
+        )
         return safeRowData.length > 3
           ? 'multi-value-cell-large'
           : 'multi-value-cell'
