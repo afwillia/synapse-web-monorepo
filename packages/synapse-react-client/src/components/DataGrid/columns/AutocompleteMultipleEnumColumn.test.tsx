@@ -9,6 +9,60 @@ import {
   autocompleteMultipleEnumColumn,
 } from './AutocompleteMultipleEnumColumn'
 
+const isOptionArray = (
+  value: AutocompleteMultipleEnumOption | AutocompleteMultipleEnumOption[],
+): value is AutocompleteMultipleEnumOption[] => Array.isArray(value)
+
+const toOptionArray = (
+  value: AutocompleteMultipleEnumOption | AutocompleteMultipleEnumOption[],
+): AutocompleteMultipleEnumOption[] => (isOptionArray(value) ? value : [value])
+
+const GridHarness = () => {
+  const [activeCell, setActiveCell] = useState<'auto' | 'plain'>('auto')
+  const [enumValues, setEnumValues] = useState<
+    AutocompleteMultipleEnumOption[]
+  >(['Option A'])
+  const [plainValue, setPlainValue] = useState('Plain value')
+
+  return (
+    <div>
+      <div
+        data-testid="autocomplete-multi-cell"
+        onClick={() => setActiveCell('auto')}
+      >
+        <AutocompleteMultipleEnumCell
+          {...({
+            rowData: enumValues,
+            setRowData: (
+              value:
+                | AutocompleteMultipleEnumOption
+                | AutocompleteMultipleEnumOption[],
+            ) => setEnumValues(toOptionArray(value)),
+            choices: ['Option A', 'Option B'],
+            colType: 'string',
+            limitTags: 2,
+            active: activeCell === 'auto',
+          } as AutocompleteMultipleEnumCellProps)}
+        />
+      </div>
+      <div data-testid="plain-text-cell" onClick={() => setActiveCell('plain')}>
+        <input
+          data-testid="plain-text-cell-input"
+          value={plainValue}
+          onChange={event => setPlainValue(event.target.value)}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            padding: '0 10px',
+            backgroundColor: 'inherit',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 describe('autocompleteMultipleEnumColumn', () => {
   it('copyValue converts row data into a comma-separated string', () => {
     const column = autocompleteMultipleEnumColumn({ choices: [] })
@@ -126,59 +180,6 @@ describe('autocompleteMultipleEnumColumn', () => {
   it('closes the dropdown when focus moves to another grid cell', async () => {
     const user = userEvent.setup()
 
-    const toArray = (
-      value: AutocompleteMultipleEnumOption,
-    ): AutocompleteMultipleEnumOption[] =>
-      Array.isArray(value)
-        ? (value as AutocompleteMultipleEnumOption[])
-        : [value as AutocompleteMultipleEnumOption]
-
-    const GridHarness = () => {
-      const [activeCell, setActiveCell] = useState<'auto' | 'plain'>('auto')
-      const [enumValues, setEnumValues] = useState<
-        AutocompleteMultipleEnumOption[]
-      >(['Option A'])
-      const [plainValue, setPlainValue] = useState('Plain value')
-
-      return (
-        <div>
-          <div
-            data-testid="autocomplete-multi-cell"
-            onClick={() => setActiveCell('auto')}
-          >
-            <AutocompleteMultipleEnumCell
-              {...({
-                rowData: enumValues,
-                setRowData: (value: AutocompleteMultipleEnumOption) =>
-                  setEnumValues(toArray(value)),
-                choices: ['Option A', 'Option B'],
-                colType: 'string',
-                limitTags: 2,
-                active: activeCell === 'auto',
-              } as AutocompleteMultipleEnumCellProps)}
-            />
-          </div>
-          <div
-            data-testid="plain-text-cell"
-            onClick={() => setActiveCell('plain')}
-          >
-            <input
-              data-testid="plain-text-cell-input"
-              value={plainValue}
-              onChange={event => setPlainValue(event.target.value)}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                padding: '0 10px',
-                backgroundColor: 'inherit',
-              }}
-            />
-          </div>
-        </div>
-      )
-    }
-
     render(<GridHarness />)
 
     const comboBox = screen.getByRole('combobox')
@@ -196,5 +197,58 @@ describe('autocompleteMultipleEnumColumn', () => {
     await waitFor(() => {
       expect(comboBox).toHaveAttribute('aria-expanded', 'false')
     })
+  })
+
+  it('reopens the dropdown when focus returns to the multi enum cell', async () => {
+    const user = userEvent.setup()
+
+    render(<GridHarness />)
+
+    expect(screen.getByRole('button', { name: 'Option A' })).toBeVisible()
+    const comboBox = screen.getByRole('combobox')
+    await user.click(comboBox)
+    fireEvent.change(comboBox, { target: { value: 'Option' } })
+
+    await waitFor(() => {
+      expect(comboBox).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    const plainInput = screen.getByTestId('plain-text-cell-input')
+    await user.click(plainInput)
+
+    await waitFor(() => {
+      expect(comboBox).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    const multiCell = screen.getByTestId('autocomplete-multi-cell')
+    await user.click(multiCell)
+
+    await waitFor(() => {
+      expect(comboBox).toHaveAttribute('aria-expanded', 'true')
+    })
+  })
+
+  it('selects an option from the dropdown and displays it in the cell', async () => {
+    const user = userEvent.setup()
+
+    render(<GridHarness />)
+
+    const comboBox = screen.getByRole('combobox')
+    await user.click(comboBox)
+
+    fireEvent.change(comboBox, { target: { value: 'Option' } })
+
+    await waitFor(() => {
+      expect(comboBox).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    const optionB = await screen.findByRole('option', { name: 'Option B' })
+    await user.click(optionB)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Option B' })).toBeVisible()
+    })
+
+    expect(screen.getByRole('button', { name: 'Option A' })).toBeVisible()
   })
 })
