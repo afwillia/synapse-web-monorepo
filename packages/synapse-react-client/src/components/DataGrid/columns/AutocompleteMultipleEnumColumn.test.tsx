@@ -223,6 +223,9 @@ describe('autocompleteMultipleEnumColumn', () => {
     const multiCell = screen.getByTestId('autocomplete-multi-cell')
     await user.click(multiCell)
 
+    // Click the combobox input to open the dropdown (just clicking the cell doesn't automatically open it)
+    await user.click(comboBox)
+
     await waitFor(() => {
       expect(comboBox).toHaveAttribute('aria-expanded', 'true')
     })
