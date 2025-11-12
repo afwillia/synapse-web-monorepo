@@ -22,7 +22,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { DataSheetGrid, DataSheetGridRef } from 'react-datasheet-grid'
+import { DynamicDataSheetGrid, DataSheetGridRef } from 'react-datasheet-grid'
 import 'react-datasheet-grid/dist/style.css'
 import '../../style/components/_data-grid-extra.scss'
 import { SelectionWithId } from 'react-datasheet-grid/dist/types'
@@ -218,50 +218,40 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       [commit, schemaPropertiesInfo],
     )
 
-    const handleChange = (newValue: DataGridRow[], operations: Operation[]) => {
-      if (!model) {
-        console.error('Model is not initialized')
-        return
-      }
-
-      // Check that something changed before updating the model
-      operations = removeNoOpOperations(newValue, rowValues, operations)
-
-      if (operations.length > 0) {
-        // Clear redo stack since new changes invalidate redo history
-        clearRedoStack()
-
-        // Track row creation, updates, and deletions to keep UI state and undo history in sync
-
-        // Add all operations to the undo stack
-        addOperationsToUndoStack(operations, rowValues, newValue)
-
-        // Transform operations to model changes
-        const modelChanges = mapOperationsToModelChanges(operations, newValue)
-
-        applyAndCommitChanges(model, modelChanges)
-      }
-    }
+    const isUpdatingSelectionRef = useRef(false)
 
     const handleSelectionChange = useCallback(
       (opts: { selection: SelectionWithId | null }) => {
+        // Prevent infinite loop: don't process selection changes while we're updating
+        if (isUpdatingSelectionRef.current) {
+          return
+        }
+
         const { selection } = opts
         if (selection != null) {
           setLastSelection(selection)
 
           if (model != null && replicaId != null) {
-            const replicaSelectionModel = computeReplicaSelectionModel(
-              selection,
-              model,
-            )
-            // insert it into the CRDT Model
-            applyAndCommitChanges(model, [
-              {
-                type: 'SET_SELECTION',
-                replicaId: replicaId.toString(),
-                selection: replicaSelectionModel,
-              },
-            ])
+            isUpdatingSelectionRef.current = true
+            try {
+              const replicaSelectionModel = computeReplicaSelectionModel(
+                selection,
+                model,
+              )
+              // insert it into the CRDT Model
+              applyAndCommitChanges(model, [
+                {
+                  type: 'SET_SELECTION',
+                  replicaId: replicaId.toString(),
+                  selection: replicaSelectionModel,
+                },
+              ])
+            } finally {
+              // Reset the flag after a brief delay to allow the update to propagate
+              setTimeout(() => {
+                isUpdatingSelectionRef.current = false
+              }, 0)
+            }
           }
         }
       },
@@ -294,6 +284,92 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
     )
 
     const gridRef = useRef<DataSheetGridRef | null>(null)
+
+    const handleChange = useCallback(
+      (newValue: DataGridRow[], operations: Operation[]) => {
+        if (!model) {
+          console.error('Model is not initialized')
+          return
+        }
+
+        operations = removeNoOpOperations(newValue, rowValues, operations)
+
+        if (operations.length > 0) {
+          clearRedoStack()
+          addOperationsToUndoStack(operations, rowValues, newValue)
+          const modelChanges = mapOperationsToModelChanges(operations, newValue)
+          applyAndCommitChanges(model, modelChanges)
+        }
+      },
+      [
+        model,
+        rowValues,
+        clearRedoStack,
+        addOperationsToUndoStack,
+        applyAndCommitChanges,
+      ],
+    )
+
+    const rowClassName = useCallback(
+      ({ rowData, rowIndex }: { rowData: DataGridRow; rowIndex: number }) =>
+        classNames({
+          'row-valid': !!jsonSchema && rowData.__validationStatus === 'valid',
+          'row-invalid':
+            !!jsonSchema && rowData.__validationStatus === 'invalid',
+          'row-unknown':
+            !!jsonSchema && rowData.__validationStatus === 'pending',
+          'row-selected': selectedRowIndex === rowIndex,
+        }),
+      [jsonSchema, selectedRowIndex],
+    )
+
+    const cellClassName = useCallback(
+      ({
+        rowData,
+        rowIndex,
+        columnId,
+      }: {
+        rowData: unknown
+        rowIndex: number
+        columnId?: string
+      }) => {
+        return getCellClassName({
+          rowData: rowData as DataGridRow,
+          rowIndex,
+          columnId,
+          selectedRowIndex,
+          lastSelection,
+          colValues,
+        })
+      },
+      [selectedRowIndex, lastSelection, colValues],
+    )
+
+    const duplicateRow = useCallback(
+      ({ rowData }: { rowData: DataGridRow }) => ({
+        ...rowData,
+      }),
+      [],
+    )
+
+    const onActiveCellChange = useCallback(
+      ({ cell }: { cell: { row: number; col: number } | null }) => {
+        if (cell) {
+          setSelectedRowIndex(cell.row)
+        }
+      },
+      [],
+    )
+
+    const addRowsComponent = useMemo(
+      () => (entityIsView ? false : renderAddRowsComponent),
+      [entityIsView],
+    )
+
+    const contextMenuComponent = useMemo(
+      () => (entityIsView ? renderViewContextMenu : renderRecordSetContextMenu),
+      [entityIsView],
+    )
 
     return (
       <div>
@@ -404,53 +480,19 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                     </Stack>
                   </Grid>
                   <Grid size={12}>
-                    <DataSheetGrid
+                    <DynamicDataSheetGrid
                       ref={gridRef}
                       value={rowValues}
                       columns={colValues}
                       autoAddRow={!entityIsView}
-                      addRowsComponent={
-                        entityIsView ? false : renderAddRowsComponent
-                      }
-                      contextMenuComponent={
-                        entityIsView
-                          ? renderViewContextMenu
-                          : renderRecordSetContextMenu
-                      }
+                      addRowsComponent={addRowsComponent}
+                      contextMenuComponent={contextMenuComponent}
                       rowKey={GRID_ROW_REACT_KEY_PROPERTY}
-                      rowClassName={({ rowData, rowIndex }) =>
-                        classNames({
-                          'row-valid':
-                            !!jsonSchema &&
-                            rowData.__validationStatus === 'valid',
-                          'row-invalid':
-                            !!jsonSchema &&
-                            rowData.__validationStatus === 'invalid',
-                          'row-unknown':
-                            !!jsonSchema &&
-                            rowData.__validationStatus === 'pending',
-                          'row-selected': selectedRowIndex === rowIndex,
-                        })
-                      }
-                      cellClassName={({ rowData, rowIndex, columnId }) => {
-                        return getCellClassName({
-                          rowData: rowData as DataGridRow,
-                          rowIndex,
-                          columnId,
-                          selectedRowIndex,
-                          lastSelection,
-                          colValues,
-                        })
-                      }}
-                      duplicateRow={({ rowData }) => ({
-                        ...rowData,
-                      })}
+                      rowClassName={rowClassName}
+                      cellClassName={cellClassName}
+                      duplicateRow={duplicateRow}
                       onChange={handleChange}
-                      onActiveCellChange={({ cell }) => {
-                        if (cell) {
-                          setSelectedRowIndex(cell.row)
-                        }
-                      }}
+                      onActiveCellChange={onActiveCellChange}
                       onSelectionChange={handleSelectionChange}
                     />
                   </Grid>
