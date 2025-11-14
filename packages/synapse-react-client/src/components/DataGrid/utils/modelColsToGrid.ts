@@ -1,15 +1,20 @@
+import isEmpty from 'lodash-es/isEmpty'
 import { Column } from 'react-datasheet-grid'
-import { GridModelSnapshot } from '../DataGridTypes'
 import { createColumn } from './columnFactory'
 import { SchemaPropertiesMap } from '@/utils/jsonschema/getSchemaPropertyInfo'
 
 export function modelColsToGrid(
-  modelSnapshot: GridModelSnapshot,
+  columnNames: string[],
+  columnOrder: number[],
   schemaPropertiesInfo: SchemaPropertiesMap,
 ): Column[] {
-  if (!modelSnapshot) return []
-
-  const { columnNames, columnOrder } = modelSnapshot
+  if (
+    !columnNames ||
+    isEmpty(columnNames) ||
+    !columnOrder ||
+    isEmpty(columnOrder)
+  )
+    return []
 
   return columnOrder.map((index: number) => {
     const columnName = columnNames[index]
