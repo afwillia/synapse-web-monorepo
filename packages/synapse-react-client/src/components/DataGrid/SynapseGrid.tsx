@@ -7,6 +7,7 @@ import UploadCsvToGridButton from '@/components/DataGrid/components/UploadCsvToG
 import { useGetEntity, useGetSchema } from '@/synapse-queries/index'
 import { getSchemaPropertiesInfo } from '@/utils/jsonschema/getSchemaPropertyInfo'
 import Grid from '@mui/material/Grid'
+import { useDeepCompareMemo } from '@react-hookz/web'
 import {
   CreateGridRequest,
   GridSession,
@@ -26,6 +27,7 @@ import { DynamicDataSheetGrid, DataSheetGridRef } from 'react-datasheet-grid'
 import 'react-datasheet-grid/dist/style.css'
 import '../../style/components/_data-grid-extra.scss'
 import { SelectionWithId } from 'react-datasheet-grid/dist/types'
+import { useDeepCompareMemoize } from 'use-deep-compare-effect'
 import FullWidthAlert from '../FullWidthAlert/FullWidthAlert'
 import { DataGridRow, GridModel, Operation } from './DataGridTypes'
 import { useGridUndoRedo } from './hooks/useGridUndoRedo'
@@ -179,17 +181,28 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
 
     const connectionStatus = isConnected ? 'Connected' : 'Disconnected'
 
+    const getRowValues = useCallback(() => {
+      if (model && model?.api.getSnapshot()) {
+        return modelRowsToGrid(model, model?.api.getSnapshot())
+      }
+      return []
+    }, [model])
+
     // Transform the model view rows and columns to DataSheetGrid format
-    const rowValues = useMemo(
-      () => (modelSnapshot ? modelRowsToGrid(model, modelSnapshot) : []),
-      [model, modelSnapshot],
-    )
+    const rowValues = useDeepCompareMemo(() => getRowValues(), [getRowValues()])
+    const columnOrder = useDeepCompareMemoize(modelSnapshot?.columnOrder)
+    const columnNames = useDeepCompareMemoize(modelSnapshot?.columnNames)
+
+    console.log('RowValues:', rowValues)
+
     const colValues = useMemo(
       () =>
-        modelSnapshot
-          ? modelColsToGrid(modelSnapshot, schemaPropertiesInfo)
-          : [],
-      [modelSnapshot, schemaPropertiesInfo],
+        modelColsToGrid(
+          columnNames ?? [],
+          columnOrder ?? [],
+          schemaPropertiesInfo,
+        ),
+      [columnNames, columnOrder, schemaPropertiesInfo],
     )
 
     const commit = useCallback(() => {
@@ -292,6 +305,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
           return
         }
 
+        const rowValues = getRowValues()
         operations = removeNoOpOperations(newValue, rowValues, operations)
 
         if (operations.length > 0) {
@@ -303,7 +317,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       },
       [
         model,
-        rowValues,
+        getRowValues,
         clearRedoStack,
         addOperationsToUndoStack,
         applyAndCommitChanges,

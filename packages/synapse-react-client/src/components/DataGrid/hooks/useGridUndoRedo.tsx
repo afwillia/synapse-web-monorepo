@@ -234,72 +234,78 @@ export function useGridUndoRedo(
     }
   }, [handleUndo, handleRedo])
 
-  const addToUndoStack = (action: GridAction) => {
-    undoStack.push(action)
-  }
+  const addToUndoStack = useCallback(
+    (action: GridAction) => {
+      undoStack.push(action)
+    },
+    [undoStack],
+  )
 
-  const clearUndoStack = () => undoStack.clear()
+  const clearUndoStack = useCallback(() => undoStack.clear(), [undoStack])
 
-  const clearRedoStack = () => redoStack.clear()
+  const clearRedoStack = useCallback(() => redoStack.clear(), [redoStack])
 
-  const addOperationsToUndoStack = (
-    operations: Operation[],
-    rowValues: DataGridRow[],
-    newValue: DataGridRow[],
-  ) => {
-    // Clear redo stack since new changes invalidate redo history
-    clearRedoStack()
+  const addOperationsToUndoStack = useCallback(
+    (
+      operations: Operation[],
+      rowValues: DataGridRow[],
+      newValue: DataGridRow[],
+    ) => {
+      // Clear redo stack since new changes invalidate redo history
+      clearRedoStack()
 
-    const batch: SingleGridAction[] = []
+      const batch: SingleGridAction[] = []
 
-    for (const operation of operations) {
-      const start = operation.fromRowIndex
-      const end = operation.toRowIndex
+      for (const operation of operations) {
+        const start = operation.fromRowIndex
+        const end = operation.toRowIndex
 
-      if (operation.type === 'CREATE') {
-        for (let i = start; i < end; i++) {
-          const newRow = newValue[i]
-          batch.push({
-            type: 'CREATE',
-            rowIndex: i,
-            newValue: newRow,
+        if (operation.type === 'CREATE') {
+          for (let i = start; i < end; i++) {
+            const newRow = newValue[i]
+            batch.push({
+              type: 'CREATE',
+              rowIndex: i,
+              newValue: newRow,
+            })
+          }
+        }
+
+        if (operation.type === 'UPDATE') {
+          const oldVal = rowValues.slice(start, end)
+          const newVal = newValue.slice(start, end)
+
+          newVal.forEach((newRow: DataGridRow, idx: number) => {
+            const oldRow = oldVal[idx]
+            const rowIndex = start + idx
+            batch.push({
+              type: 'UPDATE',
+              rowIndex,
+              previousValue: oldRow,
+              newValue: newRow,
+            })
+          })
+        }
+
+        if (operation.type === 'DELETE') {
+          const deletedRows = rowValues.slice(start, end)
+          deletedRows.forEach((row, idx) => {
+            batch.push({
+              type: 'DELETE',
+              rowIndex: start + idx,
+              previousValue: row,
+            })
           })
         }
       }
-
-      if (operation.type === 'UPDATE') {
-        const oldVal = rowValues.slice(start, end)
-        const newVal = newValue.slice(start, end)
-
-        newVal.forEach((newRow: DataGridRow, idx: number) => {
-          const oldRow = oldVal[idx]
-          const rowIndex = start + idx
-          batch.push({
-            type: 'UPDATE',
-            rowIndex,
-            previousValue: oldRow,
-            newValue: newRow,
-          })
-        })
+      if (batch.length === 1) {
+        addToUndoStack(batch[0])
+      } else if (batch.length > 1) {
+        addToUndoStack(batchGridActions(batch))
       }
-
-      if (operation.type === 'DELETE') {
-        const deletedRows = rowValues.slice(start, end)
-        deletedRows.forEach((row, idx) => {
-          batch.push({
-            type: 'DELETE',
-            rowIndex: start + idx,
-            previousValue: row,
-          })
-        })
-      }
-    }
-    if (batch.length === 1) {
-      addToUndoStack(batch[0])
-    } else if (batch.length > 1) {
-      addToUndoStack(batchGridActions(batch))
-    }
-  }
+    },
+    [addToUndoStack, clearRedoStack],
+  )
 
   const undoUI = (
     <>

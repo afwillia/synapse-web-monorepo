@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 /**
  * Hook for managing a stack data structure
@@ -42,13 +42,16 @@ import { useCallback, useState } from 'react'
 
   const isEmpty = useCallback(() => currentStack.length === 0, [currentStack])
 
-  return {
-    stack: currentStack,
-    push,
-    pop,
-    clear,
-    peek,
-    size: currentStack.length,
-    isEmpty,
-  }
+  return useMemo(
+    () => ({
+      stack: currentStack,
+      push,
+      pop,
+      clear,
+      peek,
+      size: currentStack.length,
+      isEmpty,
+    }),
+    [clear, currentStack, isEmpty, peek, pop, push],
+  )
 }
