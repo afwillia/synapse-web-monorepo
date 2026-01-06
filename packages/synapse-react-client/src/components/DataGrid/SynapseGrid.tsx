@@ -4,6 +4,7 @@ import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid
 import MergeGridWithSourceTableButton from '@/components/DataGrid/MergeGridWithSourceTableButton'
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
+import { calculateDefaultColumnWidth } from '@/components/DataGrid/utils/calculateColumnWidth'
 import { SkeletonTable } from '@/components/index'
 import { useGetEntity } from '@/synapse-queries/index'
 import { getSchemaPropertiesInfo } from '@/utils/jsonschema/getSchemaPropertyInfo'
@@ -57,8 +58,13 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
     const [lastSelection, setLastSelection] = useState<SelectionWithId | null>(
       null,
     )
+    const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(
+      null,
+    )
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
 
     const startGridSessionRef = useRef<StartGridSessionHandle | null>(null)
+    const gridRef = useRef<DataSheetGridRef | null>(null)
 
     const { data: userBundle, isLoading } = useGetCurrentUserBundle()
 
@@ -166,6 +172,44 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       return getSchemaPropertiesInfo(jsonSchema ?? null)
     }, [jsonSchema])
 
+    // Initialize column widths with defaults when columns first become available
+    useEffect(() => {
+      if (!modelSnapshot?.columnNames || !modelSnapshot?.columnOrder) {
+        return
+      }
+
+      // Initialize widths for any columns that don't have them yet
+      setColumnWidths(prev => {
+        const modelColumnNames = modelSnapshot.columnOrder.map(
+          idx => modelSnapshot.columnNames[idx],
+        )
+
+        // Check if any columns need initialization
+        const needsUpdate = modelColumnNames.some(name => !prev[name])
+
+        if (!needsUpdate) {
+          return prev // Return same reference to avoid triggering updates
+        }
+
+        const newWidths = { ...prev }
+        modelColumnNames.forEach(columnName => {
+          if (!newWidths[columnName]) {
+            // Calculate default width using centralized function
+            const propertyInfo = schemaPropertiesInfo[columnName]
+            newWidths[columnName] = calculateDefaultColumnWidth(
+              columnName,
+              propertyInfo,
+            )
+          }
+        })
+        return newWidths
+      })
+    }, [
+      modelSnapshot?.columnNames,
+      modelSnapshot?.columnOrder,
+      schemaPropertiesInfo,
+    ])
+
     const connectionStatus = isConnected ? 'Connected' : 'Disconnected'
 
     // Transform the model view rows and columns to DataSheetGrid format
@@ -269,13 +313,6 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
 
     const { undoUI, redoUI, addOperationsToUndoStack, clearRedoStack } =
       useGridUndoRedo(applyModelChangeFromUndoRedo)
-
-    // Track the currently selected row index
-    const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(
-      null,
-    )
-
-    const gridRef = useRef<DataSheetGridRef | null>(null)
 
     if (!isLoading && !userBundle?.isCertified) {
       return <CertificationRequirement />
@@ -405,6 +442,8 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       handleChange={handleChange}
                       setSelectedRowIndex={setSelectedRowIndex}
                       handleSelectionChange={handleSelectionChange}
+                      columnWidths={columnWidths}
+                      setColumnWidths={setColumnWidths}
                     />
                   </Grid>
                   <Grid size={12}>
