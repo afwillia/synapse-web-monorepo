@@ -9,6 +9,7 @@ import {
 } from 'react-datasheet-grid'
 import { autocompleteColumn } from '../columns/AutocompleteColumn'
 import { autocompleteMultipleEnumColumn } from '../columns/AutocompleteMultipleEnumColumn'
+import { calculateDefaultColumnWidth } from './calculateColumnWidth'
 
 type ColumnConfig = {
   columnName: string
@@ -16,6 +17,7 @@ type ColumnConfig = {
   typeInfo: FlatTypeInfo | null
   enumeratedValues: EnumeratedValue[] | string[] | null
   isRequired: boolean
+  customWidth?: number
 }
 
 function getHeaderClassName(isRequired: boolean): string {
@@ -40,98 +42,141 @@ function createParseUserInput(isRequired?: boolean) {
 }
 
 const COLUMN_FACTORIES = {
-  multipleEnum: (config: ColumnConfig) => ({
-    ...keyColumn(
-      config.columnName,
-      autocompleteMultipleEnumColumn({
-        choices: config.enumeratedValues ?? [],
-        colType: config.typeInfo?.type || null,
-        limitTags: 3,
-        clearValue: config.isRequired ? null : undefined,
-      }),
-    ),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: calculateColumnWidth(config.columnName),
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
+  multipleEnum: (config: ColumnConfig) => {
+    const width =
+      config.customWidth ?? calculateDefaultColumnWidth(config.columnName)
+    return {
+      ...keyColumn(
+        config.columnName,
+        autocompleteMultipleEnumColumn({
+          choices: config.enumeratedValues ?? [],
+          colType: config.typeInfo?.type || null,
+          limitTags: 3,
+          clearValue: config.isRequired ? null : undefined,
+        }),
+      ),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 
-  boolean: (config: ColumnConfig) => ({
-    ...keyColumn(
-      config.columnName,
-      autocompleteColumn({
-        choices: [true, false],
-        colType: 'boolean',
-        clearValue: config.isRequired ? null : undefined,
-      }),
-    ),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: calculateColumnWidth(config.columnName),
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
+  boolean: (config: ColumnConfig) => {
+    const width =
+      config.customWidth ?? calculateDefaultColumnWidth(config.columnName)
+    return {
+      ...keyColumn(
+        config.columnName,
+        autocompleteColumn({
+          choices: [true, false],
+          colType: 'boolean',
+          clearValue: config.isRequired ? null : undefined,
+        }),
+      ),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 
-  number: (config: ColumnConfig) => ({
-    ...keyColumn(config.columnName, floatColumn),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: calculateColumnWidth(config.columnName),
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
+  number: (config: ColumnConfig) => {
+    const width =
+      config.customWidth ?? calculateDefaultColumnWidth(config.columnName)
+    return {
+      ...keyColumn(config.columnName, floatColumn),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 
-  enumerated: (config: ColumnConfig) => ({
-    ...keyColumn(
-      config.columnName,
-      autocompleteColumn({
-        choices: config.enumeratedValues ?? [],
-        colType: config.typeInfo?.type || null,
-        clearValue: config.isRequired ? null : undefined,
-      }),
-    ),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: calculateColumnWidth(config.columnName),
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
+  enumerated: (config: ColumnConfig) => {
+    const width =
+      config.customWidth ?? calculateDefaultColumnWidth(config.columnName)
+    return {
+      ...keyColumn(
+        config.columnName,
+        autocompleteColumn({
+          choices: config.enumeratedValues ?? [],
+          colType: config.typeInfo?.type || null,
+          clearValue: config.isRequired ? null : undefined,
+        }),
+      ),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 
-  'date-time': (config: ColumnConfig) => ({
-    ...keyColumn(
-      config.columnName,
-      dateTimeColumn({
-        colType: config.typeInfo?.type || null,
-      }),
-    ),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: Math.max(calculateColumnWidth(config.columnName), 215),
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
+  'date-time': (config: ColumnConfig) => {
+    const width =
+      config.customWidth ??
+      calculateDefaultColumnWidth(config.columnName, {
+        type: config.typeInfo ?? undefined,
+        isRequired: config.isRequired,
+        enumeratedValues: null,
+      })
+    return {
+      ...keyColumn(
+        config.columnName,
+        dateTimeColumn({
+          colType: config.typeInfo?.type || null,
+        }),
+      ),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 
-  text: (config: ColumnConfig) => ({
-    ...keyColumn(
-      config.columnName,
-      createTextColumn({
-        continuousUpdates: false,
-        deletedValue: undefined,
-        parseUserInput: createParseUserInput(config.isRequired),
-      }),
-    ),
-    title: config.columnName,
-    headerClassName: getHeaderClassName(config.isRequired),
-    minWidth: calculateColumnWidth(config.columnName),
-    cellClassName: 'MuiInputBase-input',
-    disabled: config.disabled,
-    deleteValue: createDeleteValue(config.columnName, config.isRequired),
-  }),
-}
-
-function calculateColumnWidth(columnName: string): number {
-  return Math.max(175, columnName.length * 10)
+  text: (config: ColumnConfig) => {
+    const width =
+      config.customWidth ?? calculateDefaultColumnWidth(config.columnName)
+    return {
+      ...keyColumn(
+        config.columnName,
+        createTextColumn({
+          continuousUpdates: false,
+          deletedValue: undefined,
+          parseUserInput: createParseUserInput(config.isRequired),
+        }),
+      ),
+      title: config.columnName,
+      headerClassName: getHeaderClassName(config.isRequired),
+      minWidth: width,
+      basis: width,
+      grow: 0,
+      shrink: 0,
+      cellClassName: 'MuiInputBase-input',
+      disabled: config.disabled,
+      deleteValue: createDeleteValue(config.columnName, config.isRequired),
+    }
+  },
 }
 
 function getColumnType(

@@ -244,10 +244,10 @@ function DataGridStoryWrapper({
   const [lastSelection, setLastSelection] = useState<SelectionWithId | null>(
     null,
   )
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
 
   const handleChange = useCallback(
     (newValue: DataGridRow[], operations: Operation[]) => {
-      console.log('Grid changed:', { newValue, operations })
       if (enableEditing) {
         setRowValues(newValue)
       }
@@ -257,7 +257,6 @@ function DataGridStoryWrapper({
 
   const handleSelectionChange = useCallback(
     (opts: { selection: SelectionWithId | null }) => {
-      console.log('Selection changed:', opts.selection)
       setLastSelection(opts.selection)
     },
     [],
@@ -277,6 +276,8 @@ function DataGridStoryWrapper({
       handleChange={handleChange}
       setSelectedRowIndex={setSelectedRowIndex}
       handleSelectionChange={handleSelectionChange}
+      columnWidths={columnWidths}
+      setColumnWidths={setColumnWidths}
     />
   )
 }
