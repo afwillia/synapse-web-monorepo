@@ -9,6 +9,7 @@ describe('useColumnResizeHandles', () => {
   let mockHeaderRow: HTMLElement
   let mockOnColumnResize: ReturnType<typeof vi.fn>
   let mockColValues: Column[]
+  let resizeObserverCallback: ResizeObserverCallback | null = null
 
   // Helper to create mock header cells
   const createMockCell = (columnName: string, width: number = 150) => {
@@ -23,7 +24,44 @@ describe('useColumnResizeHandles', () => {
     return cell
   }
 
+  // Helper to trigger ResizeObserver callback and initialize handles
+  const triggerInitialization = () => {
+    if (resizeObserverCallback && mockWrapperRef.current) {
+      const mockEntry: ResizeObserverEntry = {
+        target: mockWrapperRef.current,
+        contentRect: {
+          width: 800,
+          height: 600,
+          top: 0,
+          left: 0,
+          bottom: 600,
+          right: 800,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        },
+        borderBoxSize: [] as any,
+        contentBoxSize: [] as any,
+        devicePixelContentBoxSize: [] as any,
+      }
+      act(() => {
+        resizeObserverCallback!([mockEntry], {} as ResizeObserver)
+      })
+    }
+  }
+
   beforeEach(() => {
+    // Mock ResizeObserver
+    resizeObserverCallback = null
+    global.ResizeObserver = vi.fn().mockImplementation(callback => {
+      resizeObserverCallback = callback
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      }
+    })
+
     // Create mock DOM structure
     mockGridContainer = document.createElement('div')
     mockGridContainer.className = 'dsg-container'
@@ -51,7 +89,7 @@ describe('useColumnResizeHandles', () => {
     mockGridContainer.appendChild(mockHeaderRow)
     document.body.appendChild(mockGridContainer)
 
-    // Create wrapper ref
+    // Create wrapper ref with proper dimensions
     const wrapperDiv = document.createElement('div')
     wrapperDiv.appendChild(mockGridContainer)
     document.body.appendChild(wrapperDiv)
@@ -68,7 +106,7 @@ describe('useColumnResizeHandles', () => {
     // Mock callback
     mockOnColumnResize = vi.fn()
 
-    // Mock timers
+    // Mock timers for RAF used in MutationObserver
     vi.useFakeTimers()
   })
 
@@ -77,6 +115,7 @@ describe('useColumnResizeHandles', () => {
     vi.clearAllTimers()
     vi.useRealTimers()
     vi.clearAllMocks()
+    resizeObserverCallback = null
   })
 
   describe('Initialization', () => {
@@ -90,15 +129,12 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
-
+      // ResizeObserver won't trigger for null ref
       const handles = document.querySelectorAll('.column-resize-handle')
       expect(handles).toHaveLength(0)
     })
 
-    it('should create handles after 300ms delay', () => {
+    it('should create handles after ResizeObserver triggers', () => {
       renderHook(() =>
         useColumnResizeHandles({
           wrapperRef: mockWrapperRef,
@@ -107,13 +143,11 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      // Before timeout
+      // Before initialization
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
 
-      // After timeout
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      // After ResizeObserver triggers
+      triggerInitialization()
 
       const handles = document.querySelectorAll('.column-resize-handle')
       expect(handles.length).toBeGreaterThan(0)
@@ -128,9 +162,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handles = document.querySelectorAll('.column-resize-handle')
       // Should create 3 handles (one per column, excluding gutter)
@@ -146,9 +178,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handles = document.querySelectorAll('.column-resize-handle')
       const handleColumnNames = Array.from(handles).map(
@@ -159,7 +189,7 @@ describe('useColumnResizeHandles', () => {
       expect(handleColumnNames).toEqual(['Column A', 'Column B', 'Column C'])
     })
 
-    it('should not execute callback if unmounted before timeout', () => {
+    it('should not execute callback if unmounted before initialization', () => {
       const { unmount } = renderHook(() =>
         useColumnResizeHandles({
           wrapperRef: mockWrapperRef,
@@ -170,9 +200,8 @@ describe('useColumnResizeHandles', () => {
 
       unmount()
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      // Try to trigger initialization after unmount
+      triggerInitialization()
 
       // No handles should be created after unmount
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
@@ -189,9 +218,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handles = document.querySelectorAll<HTMLElement>(
         '.column-resize-handle',
@@ -209,9 +236,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handles = document.querySelectorAll<HTMLElement>(
         '.column-resize-handle',
@@ -230,9 +255,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handles = document.querySelectorAll<HTMLElement>(
         '.column-resize-handle',
@@ -253,9 +276,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -282,9 +303,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -322,9 +341,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -366,9 +383,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -406,9 +421,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -447,9 +460,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -494,9 +505,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       // Find the handle for "Column A" specifically
       const handles = Array.from(
@@ -531,15 +540,13 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       // Add a new column cell
       const newCell = createMockCell('Column A', 150)
       mockHeaderRow.appendChild(newCell)
 
-      // Trigger MutationObserver
+      // Trigger MutationObserver via requestAnimationFrame
       act(() => {
         vi.runAllTimers()
       })
@@ -560,9 +567,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -606,9 +611,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -644,9 +647,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       expect(
         document.querySelectorAll('.column-resize-handle').length,
@@ -666,9 +667,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -690,7 +689,7 @@ describe('useColumnResizeHandles', () => {
       expect(document.body.classList.contains('col-resizing')).toBe(false)
     })
 
-    it('should clear timeout if unmounted before delay', () => {
+    it('should clean up ResizeObserver if unmounted before initialization', () => {
       const { unmount } = renderHook(() =>
         useColumnResizeHandles({
           wrapperRef: mockWrapperRef,
@@ -699,12 +698,11 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      // Unmount before timeout completes
+      // Unmount before initialization
       unmount()
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      // Try to trigger initialization after unmount
+      triggerInitialization()
 
       // No handles should be created
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
@@ -719,9 +717,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
@@ -755,7 +751,7 @@ describe('useColumnResizeHandles', () => {
   })
 
   describe('Re-initialization', () => {
-    it('should not recreate handles during active resize', () => {
+    it('should cleanup handles when dependencies change during active resize', () => {
       const { rerender } = renderHook(
         ({ colValues }) =>
           useColumnResizeHandles({
@@ -766,16 +762,11 @@ describe('useColumnResizeHandles', () => {
         { initialProps: { colValues: mockColValues } },
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const handle = document.querySelector<HTMLElement>(
         '.column-resize-handle',
       )!
-      const initialHandleCount = document.querySelectorAll(
-        '.column-resize-handle',
-      ).length
 
       act(() => {
         // Start drag
@@ -786,21 +777,21 @@ describe('useColumnResizeHandles', () => {
         handle.dispatchEvent(mouseDownEvent)
       })
 
-      // Try to trigger re-initialization during resize
+      expect(document.body.classList.contains('col-resizing')).toBe(true)
+
+      // Change colValues triggers useEffect cleanup and re-initialization
       const newColValues = [
         ...mockColValues,
         { id: 'columnD', title: 'Column D' } as Column,
       ]
       rerender({ colValues: newColValues })
 
-      act(() => {
-        vi.runAllTimers()
-      })
+      // The cleanup should have removed the col-resizing class
+      expect(document.body.classList.contains('col-resizing')).toBe(false)
 
-      // Should not recreate handles during active resize
-      expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(
-        initialHandleCount,
-      )
+      // Old handles should be cleaned up (they will be recreated on next initialization)
+      // But since we haven't triggered initialization again, there should be no handles
+      expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
     })
 
     it('should recreate handles when colValues change', () => {
@@ -814,9 +805,7 @@ describe('useColumnResizeHandles', () => {
         { initialProps: { colValues: mockColValues } },
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const initialHandles = Array.from(
         document.querySelectorAll('.column-resize-handle'),
@@ -827,9 +816,8 @@ describe('useColumnResizeHandles', () => {
       const newColValues = mockColValues.slice(0, 2) // Remove one column
       rerender({ colValues: newColValues })
 
-      act(() => {
-        vi.runAllTimers()
-      })
+      // Trigger re-initialization
+      triggerInitialization()
 
       // Handles should be recreated
       // Note: The actual number depends on what's in the DOM
@@ -848,9 +836,7 @@ describe('useColumnResizeHandles', () => {
         { initialProps: { colValues: mockColValues } },
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const initialHandles = Array.from(
         document.querySelectorAll<HTMLElement>('.column-resize-handle'),
@@ -871,9 +857,8 @@ describe('useColumnResizeHandles', () => {
 
       rerender({ colValues: newColValues })
 
-      act(() => {
-        vi.runAllTimers()
-      })
+      // Trigger re-initialization
+      triggerInitialization()
 
       // Old handles should be removed from DOM
       initialHandles.forEach(handle => {
@@ -892,9 +877,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       const scrollSpy = vi.fn()
       mockGridContainer.addEventListener('scroll', scrollSpy)
@@ -918,9 +901,7 @@ describe('useColumnResizeHandles', () => {
         }),
       )
 
-      act(() => {
-        vi.advanceTimersByTime(300)
-      })
+      triggerInitialization()
 
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
     })
@@ -939,9 +920,29 @@ describe('useColumnResizeHandles', () => {
           }),
         )
 
-        act(() => {
-          vi.advanceTimersByTime(300)
-        })
+        // Trigger initialization - should handle gracefully
+        if (resizeObserverCallback) {
+          const mockEntry: ResizeObserverEntry = {
+            target: emptyWrapper,
+            contentRect: {
+              width: 800,
+              height: 600,
+              top: 0,
+              left: 0,
+              bottom: 600,
+              right: 800,
+              x: 0,
+              y: 0,
+              toJSON: () => ({}),
+            },
+            borderBoxSize: [] as any,
+            contentBoxSize: [] as any,
+            devicePixelContentBoxSize: [] as any,
+          }
+          act(() => {
+            resizeObserverCallback!([mockEntry], {} as ResizeObserver)
+          })
+        }
       }).not.toThrow()
 
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
@@ -964,9 +965,29 @@ describe('useColumnResizeHandles', () => {
           }),
         )
 
-        act(() => {
-          vi.advanceTimersByTime(300)
-        })
+        // Trigger initialization - should handle gracefully
+        if (resizeObserverCallback) {
+          const mockEntry: ResizeObserverEntry = {
+            target: wrapperWithoutHeader,
+            contentRect: {
+              width: 800,
+              height: 600,
+              top: 0,
+              left: 0,
+              bottom: 600,
+              right: 800,
+              x: 0,
+              y: 0,
+              toJSON: () => ({}),
+            },
+            borderBoxSize: [] as any,
+            contentBoxSize: [] as any,
+            devicePixelContentBoxSize: [] as any,
+          }
+          act(() => {
+            resizeObserverCallback!([mockEntry], {} as ResizeObserver)
+          })
+        }
       }).not.toThrow()
 
       expect(document.querySelectorAll('.column-resize-handle')).toHaveLength(0)
