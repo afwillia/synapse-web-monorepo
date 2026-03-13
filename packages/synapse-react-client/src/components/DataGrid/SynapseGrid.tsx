@@ -4,6 +4,14 @@ import ExportCsvFromGridButton from '@/components/DataGrid/components/ExportCsvF
 import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid'
 import MergeGridWithSourceTableButton from '@/components/DataGrid/MergeGridWithSourceTableButton'
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
+import {
+  resolveRemoteSelections,
+  RemotePresenceInfo,
+} from '@/components/DataGrid/utils/resolveRemoteSelections'
+import { getUserPaletteIndex } from '@/components/DataGrid/utils/getUserPaletteIndex'
+import { useFlashTracker } from '@/components/DataGrid/hooks/useFlashTracker'
+import { useActiveReplicas } from '@/components/DataGrid/hooks/useActiveReplicas'
+import PresenceToolbar from '@/components/DataGrid/components/PresenceToolbar'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
 import { SkeletonTable } from '@/components/index'
 import { useGetEntity } from '@/synapse-queries/index'
@@ -15,6 +23,7 @@ import {
   CreateGridRequest,
   GridSession,
 } from '@sage-bionetworks/synapse-client'
+import { useGetGridReplicas } from '@/synapse-queries/grid/useGridSession'
 import { ClickableJsonCrdt } from 'clickable-json'
 import {
   forwardRef,
@@ -175,6 +184,77 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       [model, modelSnapshot],
     )
 
+    // Only show replicas that have made changes since the current user connected
+    const activeReplicaIds = useActiveReplicas(
+      modelSnapshot,
+      hasCompletedInitialSync,
+      replicaId,
+      model,
+    )
+
+    // Fetch GridReplica metadata (isAgentReplica) for each active remote replica
+    const replicaMetadata = useGetGridReplicas(
+      session?.sessionId,
+      activeReplicaIds,
+    )
+
+    const allRemotePresence = useMemo(
+      () =>
+        model && modelSnapshot && replicaId != null
+          ? resolveRemoteSelections(
+              model,
+              modelSnapshot,
+              replicaId,
+              replicaMetadata,
+            )
+          : [],
+      [model, modelSnapshot, replicaId, replicaMetadata],
+    )
+
+    const remotePresence = useMemo(
+      () => allRemotePresence.filter(p => activeReplicaIds.has(p.replicaId)),
+      [allRemotePresence, activeReplicaIds],
+    )
+
+    // Build presence entries for bots that have made changes (they never have a
+    // selection, so they don't appear in remotePresence via resolveRemoteSelections).
+    const botPresence = useMemo(() => {
+      const result: RemotePresenceInfo[] = []
+      for (const replicaIdStr of activeReplicaIds) {
+        const meta = replicaMetadata.get(replicaIdStr)
+        if (!meta?.isAgentReplica) continue
+        if (remotePresence.some(p => p.replicaId === replicaIdStr)) continue
+        result.push({
+          replicaId: replicaIdStr,
+          createdBy: meta.createdBy,
+          isHuman: false,
+          paletteIndex: getUserPaletteIndex(meta.createdBy),
+          rowIndices: [],
+          colIndices: [],
+          rowSelectAll: false,
+          columnSelectAll: false,
+        })
+      }
+      return result
+    }, [activeReplicaIds, replicaMetadata, remotePresence])
+
+    const allPresence = useMemo(
+      () => [...remotePresence, ...botPresence],
+      [remotePresence, botPresence],
+    )
+
+    // Tracks the most recent local operations so useFlashTracker can exclude own edits
+    // Declared here (before useFlashTracker) so it's in scope for both
+    const lastLocalOpsRef = useRef<Operation[] | null>(null)
+
+    const recentlyChangedCells = useFlashTracker(
+      rowValues,
+      hasCompletedInitialSync,
+      lastLocalOpsRef,
+      model,
+      replicaMetadata,
+    )
+
     const commit = useCallback(() => {
       if (!isConnected || !websocketInstanceRef.current) {
         return
@@ -232,6 +312,9 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
         operations = removeNoOpOperations(newValue, rowValues, operations)
 
         if (operations.length > 0) {
+          // Record local ops before applying so useFlashTracker can filter them out
+          lastLocalOpsRef.current = operations
+
           // Clear redo stack since new changes invalidate redo history
           clearRedoStack()
 
@@ -375,6 +458,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       spacing={1}
                       sx={{ justifyContent: 'flex-end' }}
                     >
+                      <PresenceToolbar remotePresence={allPresence} />
                       {undoUI}
                       {redoUI}
                       <GridMenuButton
@@ -427,6 +511,8 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       handleChange={handleChange}
                       handleSelectionChange={handleSelectionChange}
                       onSelectedRowChange={handleSelectedRowChange}
+                      remotePresence={remotePresence}
+                      recentlyChangedCells={recentlyChangedCells}
                     />
                   </Grid>
                   <Grid size={12}>

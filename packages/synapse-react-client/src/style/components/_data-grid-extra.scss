@@ -213,6 +213,76 @@ $color-text-disabled: #71767f; // gray-700
   }
 }
 
+// Remote user presence: 8-color palette (0–3 humans, 4–7 bots with lower saturation)
+// Blues excluded (conflicts with local selection #1976d2).
+// Reds and greens pushed to the bottom (conflict with invalid #fccfcc and valid #def0dd).
+// Slots 0-3 (humans): orange ~30°, teal ~180°, purple ~270°, pink ~315° — ~90° apart.
+// Slots 4-7 (bots): darker variants at the same hues.
+$presence-palette: (
+  #f57c00,
+  #00838f,
+  #7b1fa2,
+  #c2185b,
+  #e65100,
+  #00695c,
+  #4a148c,
+  #880e4f
+);
+
+@for $i from 0 through 7 {
+  $color: nth($presence-palette, $i + 1);
+
+  .presence-cell-user-#{$i} {
+    outline: 1px solid rgba($color, 0.45) !important;
+    outline-offset: -1px;
+    z-index: 20;
+  }
+}
+
+// Flash animations — one set per presence palette slot (0–3).
+// Colors match the first four entries of $presence-palette.
+// Human edits: single smooth fade. Bot edits: double-pulse to signal automation.
+$flash-colors: (#f57c00, #00838f, #7b1fa2, #c2185b);
+
+@for $i from 0 through 3 {
+  $color: nth($flash-colors, $i + 1);
+
+  @keyframes flash-human-change-#{$i} {
+    0% {
+      background-color: rgba($color, 0.45);
+    }
+    70% {
+      background-color: rgba($color, 0.15);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  @keyframes flash-bot-change-#{$i} {
+    0% {
+      background-color: rgba($color, 0.55);
+    }
+    30% {
+      background-color: rgba($color, 0.15);
+    }
+    60% {
+      background-color: rgba($color, 0.45);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .dsg-cell.cell-flash-human-#{$i} {
+    animation: flash-human-change-#{$i} 2s ease-out forwards;
+  }
+
+  .dsg-cell.cell-flash-bot-#{$i} {
+    animation: flash-bot-change-#{$i} 2s ease-out forwards;
+  }
+}
+
 // Global cursor during resize
 body.col-resizing {
   cursor: col-resize;

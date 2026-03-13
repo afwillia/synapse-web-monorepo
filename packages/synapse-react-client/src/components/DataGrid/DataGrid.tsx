@@ -18,6 +18,8 @@ import {
 import { DataGridRow, Operation } from './DataGridTypes'
 import { GRID_ROW_REACT_KEY_PROPERTY } from './utils/DataGridUtils'
 import { getCellClassName } from './utils/getCellClassName'
+import { RemotePresenceInfo } from './utils/resolveRemoteSelections'
+import { CellFlashInfo } from './hooks/useFlashTracker'
 import { useColumnResizeHandles } from './hooks/useColumnResizeHandles'
 import {
   calculateDefaultColumnWidth,
@@ -39,6 +41,8 @@ type DataGridProps = {
     rowIndex: number | null,
     row: DataGridRow | null,
   ) => void
+  remotePresence?: RemotePresenceInfo[]
+  recentlyChangedCells?: Map<string, CellFlashInfo>
 }
 
 /**
@@ -59,6 +63,8 @@ export default function DataGrid(props: DataGridProps) {
     handleChange,
     handleSelectionChange,
     onSelectedRowChange,
+    remotePresence,
+    recentlyChangedCells,
   } = props
 
   // Move columnWidths state into DataGrid
@@ -192,9 +198,17 @@ export default function DataGrid(props: DataGridProps) {
         selectedRowIndex,
         lastSelection,
         colValues,
+        remotePresence,
+        recentlyChangedCells,
       })
     },
-    [selectedRowIndex, lastSelection, colValues],
+    [
+      selectedRowIndex,
+      lastSelection,
+      colValues,
+      remotePresence,
+      recentlyChangedCells,
+    ],
   )
 
   // Wrap duplicateRow in useCallback
