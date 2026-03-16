@@ -117,7 +117,7 @@ $color-text-disabled: #71767f; // gray-700
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: var(--cell-resting-bg);
+        background: $color-valid;
       }
     }
   }
@@ -127,7 +127,7 @@ $color-text-disabled: #71767f; // gray-700
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: var(--cell-resting-bg);
+        background: $color-unknown;
       }
     }
   }
