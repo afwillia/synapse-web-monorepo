@@ -1,3 +1,5 @@
+@use 'sass:list';
+
 // Color variables for validation states
 $color-deleted: #fff1f0;
 $color-created: #f6ffed;
@@ -97,28 +99,35 @@ $color-text-disabled: #71767f; // gray-700
 
 // Cell-level validation states (higher specificity - override row states)
 .dsg-cell {
+  --cell-resting-bg: transparent;
+
   &.cell-invalid {
-    background: $color-invalid;
+    --cell-resting-bg: #{$color-invalid};
+    background: var(--cell-resting-bg);
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-invalid;
+        background: var(--cell-resting-bg);
       }
     }
   }
 
   &.cell-valid {
+    --cell-resting-bg: #{$color-valid};
+
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-valid;
+        background: var(--cell-resting-bg);
       }
     }
   }
 
   &.cell-unknown {
+    --cell-resting-bg: #{$color-unknown};
+
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-unknown;
+        background: var(--cell-resting-bg);
       }
     }
   }
@@ -230,7 +239,7 @@ $presence-palette: (
 );
 
 @for $i from 0 through 7 {
-  $color: nth($presence-palette, $i + 1);
+  $color: list.nth($presence-palette, $i + 1);
 
   .presence-cell-user-#{$i} {
     outline: 1px solid rgba($color, 0.45) !important;
@@ -245,7 +254,7 @@ $presence-palette: (
 $flash-colors: (#f57c00, #00838f, #7b1fa2, #c2185b);
 
 @for $i from 0 through 3 {
-  $color: nth($flash-colors, $i + 1);
+  $color: list.nth($flash-colors, $i + 1);
 
   @keyframes flash-human-change-#{$i} {
     0% {
@@ -255,7 +264,7 @@ $flash-colors: (#f57c00, #00838f, #7b1fa2, #c2185b);
       background-color: rgba($color, 0.15);
     }
     100% {
-      background-color: transparent;
+      background-color: var(--cell-resting-bg);
     }
   }
 
@@ -270,7 +279,7 @@ $flash-colors: (#f57c00, #00838f, #7b1fa2, #c2185b);
       background-color: rgba($color, 0.45);
     }
     100% {
-      background-color: transparent;
+      background-color: var(--cell-resting-bg);
     }
   }
 
