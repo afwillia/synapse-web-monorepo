@@ -44,6 +44,7 @@ import { StartGridSession, StartGridSessionHandle } from './StartGridSession'
 import { useDataGridWebSocket } from './useDataGridWebsocket'
 import { applyModelChange, ModelChange } from './utils/applyModelChange'
 import { removeNoOpOperations } from './utils/DataGridUtils'
+import { computeCellEditMap } from './utils/computeCellEditMap'
 import { mapOperationsToModelChanges } from './utils/mapOperationsToModelChanges'
 import { useGetCurrentUserBundle } from '@/synapse-queries'
 import CertificationRequirement from '@/components/AccessRequirementList/RequirementItem/CertificationRequirement'
@@ -241,6 +242,14 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
     const allPresence = useMemo(
       () => [...remotePresence, ...botPresence],
       [remotePresence, botPresence],
+    )
+
+    const cellEditMap = useMemo(
+      () =>
+        model && modelSnapshot
+          ? computeCellEditMap(model, modelSnapshot, replicaMetadata, replicaId)
+          : new Map<string, 'human' | 'bot'>(),
+      [model, modelSnapshot, replicaMetadata, replicaId],
     )
 
     // Tracks the most recent local operations so useFlashTracker can exclude own edits
@@ -513,6 +522,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       onSelectedRowChange={handleSelectedRowChange}
                       remotePresence={remotePresence}
                       recentlyChangedCells={recentlyChangedCells}
+                      cellEditMap={cellEditMap}
                     />
                   </Grid>
                   <Grid size={12}>

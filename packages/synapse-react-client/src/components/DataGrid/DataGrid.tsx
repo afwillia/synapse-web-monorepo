@@ -43,6 +43,7 @@ type DataGridProps = {
   ) => void
   remotePresence?: RemotePresenceInfo[]
   recentlyChangedCells?: Map<string, CellFlashInfo>
+  cellEditMap?: Map<string, 'human' | 'bot'>
 }
 
 /**
@@ -65,6 +66,7 @@ export default function DataGrid(props: DataGridProps) {
     onSelectedRowChange,
     remotePresence,
     recentlyChangedCells,
+    cellEditMap,
   } = props
 
   // Move columnWidths state into DataGrid
@@ -200,6 +202,7 @@ export default function DataGrid(props: DataGridProps) {
         colValues,
         remotePresence,
         recentlyChangedCells,
+        cellEditMap,
       })
     },
     [
@@ -208,6 +211,7 @@ export default function DataGrid(props: DataGridProps) {
       colValues,
       remotePresence,
       recentlyChangedCells,
+      cellEditMap,
     ],
   )
 
