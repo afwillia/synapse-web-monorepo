@@ -292,6 +292,33 @@ $flash-colors: (#f57c00, #00838f, #7b1fa2, #c2185b);
   }
 }
 
+// Persistent corner-triangle decoration for cells edited by humans or bots.
+// A small triangle in the top-right corner follows the Excel/Sheets "comment
+// indicator" convention. Orange = human edit, teal = bot edit.
+.dsg-cell.cell-edited-human,
+.dsg-cell.cell-edited-bot {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 5px 5px 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+}
+
+.dsg-cell.cell-edited-human::after {
+  border-color: transparent rgba(245, 124, 0, 0.8) transparent transparent;
+}
+
+.dsg-cell.cell-edited-bot::after {
+  border-color: transparent rgba(0, 131, 143, 0.8) transparent transparent;
+}
+
 // Global cursor during resize
 body.col-resizing {
   cursor: col-resize;

@@ -14,6 +14,7 @@ export function getCellClassName(params: {
   colValues?: Column[]
   recentlyChangedCells?: Map<string, CellFlashInfo>
   remotePresence?: RemotePresenceInfo[]
+  cellEditMap?: Map<string, 'human' | 'bot'>
 }): string | undefined {
   const {
     rowData,
@@ -24,6 +25,7 @@ export function getCellClassName(params: {
     colValues,
     recentlyChangedCells,
     remotePresence,
+    cellEditMap,
   } = params
 
   const isSelected = selectedRowIndex === rowIndex
@@ -65,6 +67,13 @@ export function getCellClassName(params: {
     if (flash) {
       classList.push(`cell-flash-${flash.writerType}-${flash.paletteIndex}`)
     }
+  }
+
+  // Persistent corner-triangle decoration for cells edited by humans or bots
+  if (cellEditMap && columnId) {
+    const editType = cellEditMap.get(`${rowIndex}:${columnId}`)
+    if (editType === 'human') classList.push('cell-edited-human')
+    else if (editType === 'bot') classList.push('cell-edited-bot')
   }
 
   // Colored outline for remote users' selections
