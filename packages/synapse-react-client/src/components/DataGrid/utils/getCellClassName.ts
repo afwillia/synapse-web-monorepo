@@ -1,5 +1,5 @@
 import classNames from 'classnames'
-import { DataGridRow } from '../DataGridTypes'
+import { CellEditInfo, DataGridRow } from '../DataGridTypes'
 import { SelectionWithId } from '@sage-bionetworks/react-datasheet-grid'
 import { Column } from '@sage-bionetworks/react-datasheet-grid'
 
@@ -10,6 +10,7 @@ export function getCellClassName(params: {
   selectedRowIndex: number | null
   lastSelection?: SelectionWithId | null
   colValues?: Column[]
+  cellEditMap?: Map<string, CellEditInfo>
 }): string | undefined {
   const {
     rowData,
@@ -18,6 +19,7 @@ export function getCellClassName(params: {
     selectedRowIndex,
     lastSelection,
     colValues,
+    cellEditMap,
   } = params
 
   const isSelected = selectedRowIndex === rowIndex
@@ -32,14 +34,17 @@ export function getCellClassName(params: {
   }
 
   // Add selection styling based on lastSelection
-  let isInSelection = false
-  if (lastSelection && columnId && colValues) {
-    isInSelection =
+  let colIndex = -1
+  if (columnId && colValues) {
+    colIndex = colValues.findIndex(col => col.id === columnId)
+  }
+
+  if (lastSelection && columnId && colValues && colIndex !== -1) {
+    const isInSelection =
       rowIndex >= lastSelection.min.row &&
       rowIndex <= lastSelection.max.row &&
-      colValues.findIndex(col => col.id === columnId) >=
-        lastSelection.min.col &&
-      colValues.findIndex(col => col.id === columnId) <= lastSelection.max.col
+      colIndex >= lastSelection.min.col &&
+      colIndex <= lastSelection.max.col
 
     if (isInSelection) {
       classList.push('cell-selected')
@@ -48,6 +53,14 @@ export function getCellClassName(params: {
 
   if (isInvalid) {
     classList.push('cell-invalid')
+  }
+
+  // Persistent corner-triangle decoration for cells edited by own/other human/bot
+  if (cellEditMap && columnId && colIndex !== -1) {
+    const editInfo = cellEditMap.get(`${rowIndex}:${columnId}`)
+    if (editInfo) {
+      classList.push(`cell-edited-${editInfo.writerType}`)
+    }
   }
 
   return classList.length ? classNames(classList) : undefined

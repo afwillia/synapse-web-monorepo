@@ -15,7 +15,7 @@ import {
   renderRecordSetContextMenu,
   renderViewContextMenu,
 } from './components/contextMenu'
-import { DataGridRow, Operation } from './DataGridTypes'
+import { CellEditInfo, DataGridRow, Operation } from './DataGridTypes'
 import { GRID_ROW_REACT_KEY_PROPERTY } from './utils/DataGridUtils'
 import { getCellClassName } from './utils/getCellClassName'
 import { useColumnResizeHandles } from './hooks/useColumnResizeHandles'
@@ -39,6 +39,7 @@ type DataGridProps = {
     rowIndex: number | null,
     row: DataGridRow | null,
   ) => void
+  cellEditMap?: Map<string, CellEditInfo>
 }
 
 /**
@@ -59,6 +60,7 @@ export default function DataGrid(props: DataGridProps) {
     handleChange,
     handleSelectionChange,
     onSelectedRowChange,
+    cellEditMap,
   } = props
 
   // Move columnWidths state into DataGrid
@@ -192,9 +194,10 @@ export default function DataGrid(props: DataGridProps) {
         selectedRowIndex,
         lastSelection,
         colValues,
+        cellEditMap,
       })
     },
-    [selectedRowIndex, lastSelection, colValues],
+    [selectedRowIndex, lastSelection, colValues, cellEditMap],
   )
 
   // Wrap duplicateRow in useCallback

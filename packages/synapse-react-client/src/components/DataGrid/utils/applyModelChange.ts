@@ -73,10 +73,25 @@ export function applyModelChange(
       break
 
     case 'UPDATE': {
+      const snapshot = model.api.getSnapshot()
+      const currentRowData = snapshot.rows[change.rowIndex]?.data
       Object.entries(change.updatedData).forEach(([key, value]) => {
         if (key.startsWith('_')) return // Skip internal properties like _rowId
         const colIndex = columnNames.indexOf(key)
         if (colIndex !== -1) {
+          // Only write cells whose value actually changed to avoid stamping
+          // every cell in the row with the local replica's SID.
+          const currentValue = currentRowData?.[colIndex]
+          const isNullish = (v: unknown) =>
+            v === null || v === undefined || v === ''
+          const unchanged =
+            isNullish(currentValue) && isNullish(value)
+              ? true
+              : typeof currentValue !== 'object' &&
+                typeof value !== 'object' &&
+                String(currentValue) === String(value)
+          if (unchanged) return
+
           // Get the CRDT array of cell values for this row
           const rowVec = model.api.vec([
             'rows',
