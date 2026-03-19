@@ -1,10 +1,12 @@
 import { KeyFactory } from '@/synapse-queries/index'
 import { useSynapseContext } from '@/utils/context/SynapseContext'
+import { useMemo } from 'react'
 import startGridSession from '@/utils/functions/GridApiUtils'
 import {
   CreateGridRequest,
   CreateGridResponse,
   CreateReplicaResponse,
+  GridReplica,
   GridSession,
   ListGridSessionsRequest,
   ListGridSessionsResponse,
@@ -23,6 +25,7 @@ import {
   UseInfiniteQueryOptions,
   useMutation,
   UseMutationOptions,
+  useQueries,
   useQuery,
   useQueryClient,
   UseQueryOptions,
@@ -232,4 +235,43 @@ export function useSynchronizeGridSession(
       return asyncJobResponse.responseBody as SynchronizeGridResponse
     },
   })
+}
+
+/**
+ * Fetches GridReplica metadata for a set of replica IDs in parallel and returns
+ * a stable Map<replicaIdString, GridReplica>. Replicas whose fetch is still
+ * pending are absent from the map; callers should treat absent entries as
+ * "metadata not yet available".
+ */
+export function useGetGridReplicas(
+  sessionId: string | undefined,
+  replicaIds: Set<string>,
+): Map<string, GridReplica> {
+  const { keyFactory, synapseClient } = useSynapseContext()
+
+  const replicaIdArray = useMemo(() => Array.from(replicaIds), [replicaIds])
+
+  const results = useQueries({
+    queries: replicaIdArray.map(replicaIdStr => {
+      const replicaIdNum = parseInt(replicaIdStr, 10)
+      return {
+        queryKey: keyFactory.getGridReplicaKey(sessionId!, replicaIdNum),
+        queryFn: () =>
+          synapseClient.gridServicesClient.getRepoV1GridSessionSessionIdReplicaReplicaId(
+            { sessionId: sessionId!, replicaId: replicaIdNum },
+          ),
+        enabled: !!sessionId && !isNaN(replicaIdNum),
+        staleTime: Infinity, // replica metadata is immutable once created
+      }
+    }),
+  })
+
+  return useMemo(() => {
+    const map = new Map<string, GridReplica>()
+    replicaIdArray.forEach((id, i) => {
+      const data = results[i]?.data
+      if (data) map.set(id, data)
+    })
+    return map
+  }, [replicaIdArray, results])
 }

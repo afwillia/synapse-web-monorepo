@@ -5,6 +5,8 @@ import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid
 import MergeGridWithSourceTableButton from '@/components/DataGrid/MergeGridWithSourceTableButton'
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
+import { useActiveReplicas } from '@/components/DataGrid/hooks/useActiveReplicas'
+import { computeCellEditMap } from '@/components/DataGrid/utils/computeCellEditMap'
 import { SkeletonTable } from '@/components/index'
 import { useGetEntity } from '@/synapse-queries/index'
 import { getSchemaPropertiesInfo } from '@/utils/jsonschema/getSchemaPropertyInfo'
@@ -37,6 +39,7 @@ import { applyModelChange, ModelChange } from './utils/applyModelChange'
 import { removeNoOpOperations } from './utils/DataGridUtils'
 import { mapOperationsToModelChanges } from './utils/mapOperationsToModelChanges'
 import { useGetCurrentUserBundle } from '@/synapse-queries'
+import { useGetGridReplicas } from '@/synapse-queries/grid/useGridSession'
 import CertificationRequirement from '@/components/AccessRequirementList/RequirementItem/CertificationRequirement'
 import { ValidationAlert } from './components/ValidationAlert'
 
@@ -296,6 +299,41 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       [],
     )
 
+    // Track which remote replicas have written operations since sync completed
+    const activeReplicaIds = useActiveReplicas(
+      modelSnapshot,
+      hasCompletedInitialSync,
+      replicaId,
+      model,
+    )
+
+    // Fetch metadata for active remote replicas
+    const replicaMetadata = useGetGridReplicas(
+      session?.sessionId,
+      activeReplicaIds,
+    )
+
+    // Compute persistent corner-triangle edit decorations
+    const cellEditMap = useMemo(
+      () =>
+        model && modelSnapshot
+          ? computeCellEditMap(
+              model,
+              modelSnapshot,
+              replicaMetadata,
+              replicaId,
+              userBundle?.userProfile?.ownerId,
+            )
+          : new Map(),
+      [
+        model,
+        modelSnapshot,
+        replicaMetadata,
+        replicaId,
+        userBundle?.userProfile?.ownerId,
+      ],
+    )
+
     if (!isLoading && !userBundle?.isCertified) {
       return <CertificationRequirement />
     }
@@ -431,6 +469,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       handleChange={handleChange}
                       handleSelectionChange={handleSelectionChange}
                       onSelectedRowChange={handleSelectedRowChange}
+                      cellEditMap={cellEditMap}
                     />
                   </Grid>
                   <Grid size={12}>

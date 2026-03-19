@@ -97,17 +97,22 @@ $color-text-disabled: #71767f; // gray-700
 
 // Cell-level validation states (higher specificity - override row states)
 .dsg-cell {
+  --cell-resting-bg: transparent;
+
   &.cell-invalid {
-    background: $color-invalid;
+    --cell-resting-bg: #{$color-invalid};
+    background: var(--cell-resting-bg);
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-invalid;
+        background: var(--cell-resting-bg);
       }
     }
   }
 
   &.cell-valid {
+    --cell-resting-bg: #{$color-valid};
+
     &.dsg-cell-sticky-left {
       @include data-cell-only {
         background: $color-valid;
@@ -116,6 +121,8 @@ $color-text-disabled: #71767f; // gray-700
   }
 
   &.cell-unknown {
+    --cell-resting-bg: #{$color-unknown};
+
     &.dsg-cell-sticky-left {
       @include data-cell-only {
         background: $color-unknown;
@@ -211,6 +218,47 @@ $color-text-disabled: #71767f; // gray-700
       border-right-color: rgba(100, 100, 100, 0.8);
     }
   }
+}
+
+// Persistent corner-triangle decoration for cells edited by own/other human/bot.
+// A small triangle in the top-right corner (Excel/Sheets "comment indicator" convention).
+// Colors:
+//   own-human   → blue  (#1976d2) — "I edited this" (matches selection color)
+//   own-bot     → teal  (#00838f) — "my bot edited this"
+//   other-human → orange (#f57c00) — "someone else edited this"
+//   other-bot   → purple (#7b1fa2) — "someone else's bot edited this"
+.dsg-cell.cell-edited-own-human,
+.dsg-cell.cell-edited-own-bot,
+.dsg-cell.cell-edited-other-human,
+.dsg-cell.cell-edited-other-bot {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 5px 5px 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+}
+
+.dsg-cell.cell-edited-own-human::after {
+  border-color: transparent rgba(25, 118, 210, 0.8) transparent transparent;
+}
+
+.dsg-cell.cell-edited-own-bot::after {
+  border-color: transparent rgba(0, 131, 143, 0.8) transparent transparent;
+}
+
+.dsg-cell.cell-edited-other-human::after {
+  border-color: transparent rgba(245, 124, 0, 0.8) transparent transparent;
+}
+
+.dsg-cell.cell-edited-other-bot::after {
+  border-color: transparent rgba(123, 31, 162, 0.8) transparent transparent;
 }
 
 // Global cursor during resize
