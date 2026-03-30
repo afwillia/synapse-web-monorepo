@@ -5,6 +5,7 @@ import {
 } from '@/components/DataGrid/DataGridTypes'
 import { SchemaPropertiesMap } from '@/utils/jsonschema/getSchemaPropertyInfo'
 import { s } from 'json-joy/lib/json-crdt-patch'
+import isEqual from 'lodash-es/isEqual'
 
 /**
  * Represents a change operation on the GridModel.
@@ -87,9 +88,7 @@ export function applyModelChange(
           const unchanged =
             isNullish(currentValue) && isNullish(value)
               ? true
-              : typeof currentValue !== 'object' &&
-                typeof value !== 'object' &&
-                String(currentValue) === String(value)
+              : isEqual(currentValue, value)
           if (unchanged) return
 
           // Get the CRDT array of cell values for this row
