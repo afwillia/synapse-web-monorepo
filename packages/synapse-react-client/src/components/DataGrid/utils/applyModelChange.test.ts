@@ -242,6 +242,42 @@ describe('applyModelChange', () => {
     expect(snapshot.rows[0].data).toEqual(['r2c1', 'r2c2'])
   })
 
+  it('UPDATE does not write array-valued cells whose content is unchanged', () => {
+    const model = createModel()
+
+    // Create a row where col2 holds an array value (AutocompleteMultipleEnum)
+    applyModelChange(
+      model,
+      {
+        type: 'CREATE',
+        rowIndex: 0,
+        rowData: { col1: 'text', col2: ['a', 'b'] },
+      },
+      schemaPropertyInfo,
+    )
+
+    // Capture the SID of col2 after initial write
+    const sidBefore = model.api.vec(['rows', '0', 'data'])?.node.val(1)?.sid
+
+    // UPDATE only col1; col2's array value is the same as before
+    applyModelChange(
+      model,
+      {
+        type: 'UPDATE',
+        rowIndex: 0,
+        updatedData: { col1: 'changed', col2: ['a', 'b'] },
+      },
+      schemaPropertyInfo,
+    )
+
+    const snapshot = model.api.getSnapshot()
+    expect(snapshot.rows[0].data).toEqual(['changed', ['a', 'b']])
+
+    // col2 should not have been re-written — its SID stays the same
+    const sidAfter = model.api.vec(['rows', '0', 'data'])?.node.val(1)?.sid
+    expect(sidAfter).toEqual(sidBefore)
+  })
+
   it('SET_SELECTION sets replica selection and creates object if needed', () => {
     const model = createModel()
 
