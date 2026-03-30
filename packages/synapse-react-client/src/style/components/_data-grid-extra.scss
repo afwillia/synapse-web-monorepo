@@ -1,3 +1,5 @@
+@use 'sass:color';
+
 // Color variables for validation states
 $color-deleted: #fff1f0;
 $color-created: #f6ffed;
@@ -26,11 +28,27 @@ $color-text-disabled: #71767f; // gray-700
   }
 }
 
-// Mixin for sticky column backgrounds
+// Produces a left-to-right gradient from the validation color to transparent,
+// so the corner-triangle edit decorators on the right edge remain visible.
+@mixin validation-gradient($color) {
+  background: linear-gradient(
+    to right,
+    $color 0%,
+    #{color.change($color, $alpha: 0)} 100%
+  );
+}
+
+// Mixin for sticky column backgrounds.
+// Fades to the cell background color (not transparent) so scrolling content
+// behind the sticky column is masked.
 @mixin sticky-column-bg($color) {
   .dsg-cell.dsg-cell-sticky-left {
     @include data-cell-only {
-      background: $color;
+      background: linear-gradient(
+        to right,
+        $color 0%,
+        var(--dsg-cell-background-color, white) 100%
+      );
     }
   }
 }
@@ -101,31 +119,45 @@ $color-text-disabled: #71767f; // gray-700
 
   &.cell-invalid {
     --cell-resting-bg: #{$color-invalid};
-    background: var(--cell-resting-bg);
+    @include validation-gradient($color-invalid);
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: var(--cell-resting-bg);
+        background: linear-gradient(
+          to right,
+          $color-invalid 0%,
+          var(--dsg-cell-background-color, white) 100%
+        );
       }
     }
   }
 
   &.cell-valid {
     --cell-resting-bg: #{$color-valid};
+    @include validation-gradient($color-valid);
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-valid;
+        background: linear-gradient(
+          to right,
+          $color-valid 0%,
+          var(--dsg-cell-background-color, white) 100%
+        );
       }
     }
   }
 
   &.cell-unknown {
     --cell-resting-bg: #{$color-unknown};
+    @include validation-gradient($color-unknown);
 
     &.dsg-cell-sticky-left {
       @include data-cell-only {
-        background: $color-unknown;
+        background: linear-gradient(
+          to right,
+          $color-unknown 0%,
+          var(--dsg-cell-background-color, white) 100%
+        );
       }
     }
   }
@@ -223,10 +255,21 @@ $color-text-disabled: #71767f; // gray-700
 // Persistent corner-triangle decoration for cells edited by own/other human/bot.
 // A small triangle in the top-right corner (Excel/Sheets "comment indicator" convention).
 // Colors:
-//   own-human   → blue  (#1976d2) — "I edited this" (matches selection color)
-//   own-bot     → teal  (#00838f) — "my bot edited this"
-//   other-human → orange (#f57c00) — "someone else edited this"
+//   own-human   → blue   (#1976d2) — "I edited this" (matches selection color)
+//   own-bot     → orange (#f57c00) — "my bot edited this"
+//   other-human → teal   (#00838f) — "someone else edited this"
 //   other-bot   → purple (#7b1fa2) — "someone else's bot edited this"
+//
+// Triangle size = 1/4 the cell height. Standard rows are 40px → 10px.
+// Large multi-value cells are 80px → 20px.
+.dsg-cell {
+  --dsg-decorator-size: 10px; // 40px default row height / 4
+}
+
+.dsg-cell.multi-value-cell-large {
+  --dsg-decorator-size: 20px; // 80px tall cell / 4
+}
+
 .dsg-cell.cell-edited-own-human,
 .dsg-cell.cell-edited-own-bot,
 .dsg-cell.cell-edited-other-human,
@@ -239,7 +282,7 @@ $color-text-disabled: #71767f; // gray-700
     width: 0;
     height: 0;
     border-style: solid;
-    border-width: 0 5px 5px 0;
+    border-width: 0 var(--dsg-decorator-size) var(--dsg-decorator-size) 0;
     pointer-events: none;
     z-index: 5;
   }
@@ -250,11 +293,11 @@ $color-text-disabled: #71767f; // gray-700
 }
 
 .dsg-cell.cell-edited-own-bot::after {
-  border-color: transparent rgba(0, 131, 143, 0.8) transparent transparent;
+  border-color: transparent rgba(245, 124, 0, 0.8) transparent transparent;
 }
 
 .dsg-cell.cell-edited-other-human::after {
-  border-color: transparent rgba(245, 124, 0, 0.8) transparent transparent;
+  border-color: transparent rgba(0, 131, 143, 0.8) transparent transparent;
 }
 
 .dsg-cell.cell-edited-other-bot::after {
