@@ -115,9 +115,8 @@ export function useCellEditMap(
       // Detect structural changes to the rows array (row insert / delete).
       // When row indices shift, a full rebuild is cheaper and simpler than
       // trying to remap all existing keys.
-      const rowsNodeKey = model.api.arr(['rows'])?.node
-        ? nodeKey(model.api.arr(['rows']).node.id)
-        : null
+      const rowsNode = model.api.arr(['rows'])?.node
+      const rowsNodeKey = rowsNode ? nodeKey(rowsNode.id) : null
 
       const hasStructuralChange =
         rowsNodeKey !== null &&
