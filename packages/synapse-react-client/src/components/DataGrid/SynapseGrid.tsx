@@ -6,7 +6,7 @@ import MergeGridWithSourceTableButton from '@/components/DataGrid/MergeGridWithS
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
 import { useActiveReplicas } from '@/components/DataGrid/hooks/useActiveReplicas'
-import { computeCellEditMap } from '@/components/DataGrid/utils/computeCellEditMap'
+import { useCellEditMap } from '@/components/DataGrid/hooks/useCellEditMap'
 import { SkeletonTable } from '@/components/index'
 import { useGetEntity } from '@/synapse-queries/index'
 import { getSchemaPropertiesInfo } from '@/utils/jsonschema/getSchemaPropertyInfo'
@@ -313,25 +313,14 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       activeReplicaIds,
     )
 
-    // Compute persistent corner-triangle edit decorations
-    const cellEditMap = useMemo(
-      () =>
-        model && modelSnapshot
-          ? computeCellEditMap(
-              model,
-              modelSnapshot,
-              replicaMetadata,
-              replicaId,
-              userBundle?.userProfile?.ownerId,
-            )
-          : new Map(),
-      [
-        model,
-        modelSnapshot,
-        replicaMetadata,
-        replicaId,
-        userBundle?.userProfile?.ownerId,
-      ],
+    // Compute persistent corner-triangle edit decorations incrementally via
+    // patch events rather than rescanning all cells on every snapshot change.
+    const cellEditMap = useCellEditMap(
+      model,
+      replicaMetadata,
+      replicaId,
+      userBundle?.userProfile?.ownerId,
+      hasCompletedInitialSync,
     )
 
     if (!isLoading && !userBundle?.isCertified) {
