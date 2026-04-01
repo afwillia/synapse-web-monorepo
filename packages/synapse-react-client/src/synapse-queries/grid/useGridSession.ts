@@ -1,6 +1,6 @@
 import { KeyFactory } from '@/synapse-queries/index'
 import { useSynapseContext } from '@/utils/context/SynapseContext'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import startGridSession from '@/utils/functions/GridApiUtils'
 import {
   CreateGridRequest,
@@ -271,12 +271,27 @@ export function useGetGridReplicas(
     }),
   })
 
+  // useQueries returns a new array reference every render even when data is
+  // unchanged, which would cause useCellEditMap's full-rebuild effect to fire
+  // on every render (render loop). Return the previous Map reference if the
+  // contents are identical — TanStack Query's structural sharing guarantees
+  // that individual data values are the same object reference when unchanged.
+  const prevMapRef = useRef<Map<string, GridReplica>>(new Map())
+
   return useMemo(() => {
     const map = new Map<string, GridReplica>()
     replicaIdArray.forEach((id, i) => {
       const data = results[i]?.data
       if (data) map.set(id, data)
     })
+    const prev = prevMapRef.current
+    if (
+      prev.size === map.size &&
+      replicaIdArray.every(id => prev.get(id) === map.get(id))
+    ) {
+      return prev
+    }
+    prevMapRef.current = map
     return map
   }, [replicaIdArray, results])
 }
