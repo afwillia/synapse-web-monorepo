@@ -45,13 +45,6 @@ describe('applyModelChange', () => {
   })
 
   it('Creates a new row in the model', () => {
-    model = createModel()
-    change = {
-      type: 'CREATE' as const,
-      rowIndex: 0,
-      rowData: { col1: 'value1', col2: 'value2' },
-    }
-
     applyModelChange(model, change, schemaPropertyInfo)
 
     const snapshot = model.api.getSnapshot()
