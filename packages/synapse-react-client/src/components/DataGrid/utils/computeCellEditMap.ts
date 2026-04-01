@@ -54,8 +54,14 @@ export function computeCellEditMap(
             sid,
           })
         }
-      } catch {
+      } catch (e) {
         // Cell path not found — skip
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            `computeCellEditMap: failed to read cell [${rowIndex}][${colIndex}]`,
+            e,
+          )
+        }
       }
     }
   }
