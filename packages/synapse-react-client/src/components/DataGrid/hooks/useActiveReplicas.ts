@@ -31,6 +31,10 @@ export function useActiveReplicas(
     }
   }, [hasCompletedInitialSync])
 
+  // modelSnapshot is used only as a change signal: the effect body reads from
+  // model.clock.peers directly, but we need to re-run whenever the model
+  // advances. modelSnapshot is the stable React-state value that updates on
+  // every model change, so it serves as the trigger.
   useEffect(() => {
     if (!hasCompletedInitialSync || !model) return
 
