@@ -242,6 +242,11 @@ export function useSynchronizeGridSession(
  * a stable Map<replicaIdString, GridReplica>. Replicas whose fetch is still
  * pending are absent from the map; callers should treat absent entries as
  * "metadata not yet available".
+ *
+ * IMPORTANT: `replicaIds` must be identity-stable across renders when its
+ * contents have not changed (i.e. the same Set reference should be returned
+ * until the set actually grows). useActiveReplicas satisfies this contract via
+ * its `setActiveReplicas(prev => changed ? next : prev)` update pattern.
  */
 export function useGetGridReplicas(
   sessionId: string | undefined,
