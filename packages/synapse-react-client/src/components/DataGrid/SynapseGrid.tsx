@@ -33,11 +33,15 @@ import { DataGridRow, GridModel, Operation } from './DataGridTypes'
 import { useGridUndoRedo } from './hooks/useGridUndoRedo'
 import { StartGridSession, StartGridSessionHandle } from './StartGridSession'
 import { useDataGridWebSocket } from './useDataGridWebsocket'
+import type { CellChangeInfo } from './DataGridWebSocket'
 import { applyModelChange, ModelChange } from './utils/applyModelChange'
 import { removeNoOpOperations } from './utils/DataGridUtils'
 import { mapOperationsToModelChanges } from './utils/mapOperationsToModelChanges'
 import { useGetCurrentUserBundle } from '@/synapse-queries'
 import { useListGridReplicas } from '@/synapse-queries/grid/useGridSession'
+import { useGridReplicaUsers } from './hooks/useGridReplicaUsers'
+import { useCellChangeTracker } from './hooks/useCellChangeTracker'
+import { useRemoteSelections } from './hooks/useRemoteSelections'
 import CertificationRequirement from '@/components/AccessRequirementList/RequirementItem/CertificationRequirement'
 import { ValidationAlert } from './components/ValidationAlert'
 
@@ -72,6 +76,28 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       void refetchReplicas()
     }, [refetchReplicas])
 
+    // ── Attribution infrastructure ─────────────────────────────────────────
+    const currentUserId =
+      userBundle?.userId != null ? String(userBundle.userId) : undefined
+
+    const replicaUserMap = useGridReplicaUsers(
+      replicas,
+      replicaId,
+      currentUserId,
+    )
+
+    const { cellChanges, recordChanges, clearChanges } = useCellChangeTracker()
+
+    const handlePatchApplied = useCallback(
+      (authorSid: number, changes: CellChangeInfo[]) => {
+        // category === null means SERVICE; undefined means replica not yet in map.
+        // Only clear the indicator for explicitly known SERVICE replicas.
+        const isService = replicaUserMap.get(authorSid)?.category === null
+        recordChanges(authorSid, changes, isService)
+      },
+      [replicaUserMap, recordChanges],
+    )
+
     useImperativeHandle(
       ref,
       () => ({
@@ -103,6 +129,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       onGridReady: handleReplicaConnectionChange,
       onReplicaConnected: handleReplicaConnectionChange,
       onReplicaDisconnected: handleReplicaConnectionChange,
+      onPatchApplied: handlePatchApplied,
     })
 
     const websocketInstanceRef = useRef<typeof websocketInstance | null>(null)
@@ -151,14 +178,22 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       if (model === null) {
         // Clear any grid-specific state when starting a new session
         setLastSelection(null)
+        clearChanges()
         // Clear active cell if grid exists
         if (gridRef.current) {
           gridRef.current.setActiveCell(null)
         }
       }
-    }, [model])
+    }, [model, clearChanges])
 
     const jsonSchema = useGetSchemaForGrid(session)
+
+    const remoteSelections = useRemoteSelections(
+      modelSnapshot,
+      model,
+      replicas,
+      replicaId,
+    )
 
     // Grid behaves differently for views vs recordSets
     // Note for future: can get modifiedOn to refresh grid when view changes
@@ -478,6 +513,9 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       handleChange={handleChange}
                       handleSelectionChange={handleSelectionChange}
                       onSelectedRowChange={handleSelectedRowChange}
+                      cellChanges={cellChanges}
+                      replicaUserMap={replicaUserMap}
+                      remoteSelections={remoteSelections}
                     />
                   </Grid>
                   <Grid size={12}>
