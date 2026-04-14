@@ -1,4 +1,6 @@
 import GridMenuButton from '@/components/DataGrid/components/GridMenuButton/GridMenuButton'
+import { ChangeListPanel } from '@/components/DataGrid/components/ChangeListPanel'
+import { getChangedCells } from '@/components/DataGrid/utils/getChangedCells'
 import UploadCsvToGridButton from '@/components/DataGrid/components/UploadCsvToGridButton'
 import ExportCsvFromGridButton from '@/components/DataGrid/components/ExportCsvFromGridButton'
 import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid'
@@ -8,8 +10,8 @@ import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
 import { SkeletonTable } from '@/components/index'
 import { useGetEntity } from '@/synapse-queries/index'
 import { getSchemaPropertiesInfo } from '@/utils/jsonschema/getSchemaPropertyInfo'
-import { SmartToyTwoTone } from '@mui/icons-material'
-import { Stack, Tooltip } from '@mui/material'
+import { SmartToyTwoTone, ListAltTwoTone } from '@mui/icons-material'
+import { Badge, Stack, Tooltip } from '@mui/material'
 import Grid from '@mui/material/Grid'
 import {
   CreateGridRequest,
@@ -58,6 +60,7 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
     const [session, setSession] = useState<GridSession | null>(null)
     const [replicaId, setReplicaId] = useState<number | null>(null)
     const [chatOpen, setChatOpen] = useState(false)
+    const [changeListOpen, setChangeListOpen] = useState(false)
     const [lastSelection, setLastSelection] = useState<SelectionWithId | null>(
       null,
     )
@@ -198,6 +201,14 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
       model,
       replicas,
       replicaId,
+    )
+
+    const changedCells = useMemo(
+      () =>
+        model && modelSnapshot
+          ? getChangedCells(model, modelSnapshot, replicaUserMap)
+          : [],
+      [model, modelSnapshot, replicaUserMap],
     )
 
     // Transform the model view rows and columns to DataSheetGrid format
@@ -449,6 +460,21 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                       {redoUI}
                       <GridMenuButton
                         variant={'outlined'}
+                        onClick={() => setChangeListOpen(true)}
+                        startIcon={
+                          <Badge
+                            badgeContent={changedCells.length}
+                            color="primary"
+                            max={99}
+                          >
+                            <ListAltTwoTone />
+                          </Badge>
+                        }
+                      >
+                        Changes
+                      </GridMenuButton>
+                      <GridMenuButton
+                        variant={'outlined'}
                         onClick={() => setChatOpen(true)}
                         startIcon={<SmartToyTwoTone />}
                       >
@@ -461,6 +487,15 @@ const SynapseGrid = forwardRef<SynapseGridHandle, SynapseGridProps>(
                         gridSessionId={session.sessionId!}
                         usersReplicaId={replicaId!}
                         chatbotName="Grid Assistant"
+                      />
+                      <ChangeListPanel
+                        open={changeListOpen}
+                        onClose={() => setChangeListOpen(false)}
+                        changedCells={changedCells}
+                        onJumpTo={(row, col) => {
+                          gridRef.current?.setActiveCell({ row, col })
+                          setChangeListOpen(false)
+                        }}
                       />
                       {session.sourceEntityId && (
                         <UploadCsvToGridButton
