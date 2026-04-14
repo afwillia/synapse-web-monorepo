@@ -5,6 +5,7 @@ import {
 } from '@/components/DataGrid/DataGridTypes'
 import { SchemaPropertiesMap } from '@/utils/jsonschema/getSchemaPropertyInfo'
 import { s } from 'json-joy/lib/json-crdt-patch'
+import isEqual from 'lodash-es/isEqual'
 
 /**
  * Represents a change operation on the GridModel.
@@ -83,6 +84,14 @@ export function applyModelChange(
             String(change.rowIndex),
             'data',
           ])
+          // Only write if the value actually changed to avoid reassigning authorship
+          // to cells that were not edited (array values require deep equality)
+          try {
+            const currentValue = rowVec?.get(colIndex).node.view()
+            if (isEqual(currentValue, value)) return
+          } catch {
+            // Cell node doesn't exist yet — proceed with write
+          }
           // Update the specific column with the new value
           rowVec?.set([[colIndex, s.con(value)]])
         }
