@@ -297,6 +297,68 @@ describe('CuratorDashboard', () => {
     })
   })
 
+  describe('state filter', () => {
+    it('renders the "Filter Tasks By" button in the Tasks tab', () => {
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: { pages: [] },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+
+      renderWithRouter()
+
+      expect(
+        screen.getByRole('button', { name: /filter tasks by/i }),
+      ).toBeInTheDocument()
+    })
+
+    it('adds the selected state to the stateFilter passed to the hook', async () => {
+      const user = userEvent.setup()
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: { pages: [] },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+
+      renderWithRouter()
+
+      await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
+      await user.click(screen.getByRole('menuitem', { name: /completed/i }))
+
+      await waitFor(() => {
+        expect(mockUseGetCurationTasksInfinite).toHaveBeenLastCalledWith(
+          expect.objectContaining({ stateFilter: ['COMPLETED'] }),
+        )
+      })
+    })
+
+    it('removes the state from the stateFilter when toggled off again', async () => {
+      const user = userEvent.setup()
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: { pages: [] },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+
+      renderWithRouter({ initialEntry: '/?stateFilter=COMPLETED' })
+
+      await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
+      await user.click(screen.getByRole('menuitem', { name: /completed/i }))
+
+      await waitFor(() => {
+        expect(mockUseGetCurationTasksInfinite).toHaveBeenLastCalledWith(
+          expect.objectContaining({ stateFilter: undefined }),
+        )
+      })
+    })
+  })
+
   describe('rendering tasks', () => {
     it('renders task cards when tasks are returned', async () => {
       mockUseGetCurationTasksInfinite.mockReturnValue({

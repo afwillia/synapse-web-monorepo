@@ -9,6 +9,7 @@ import Stack from '@mui/material/Stack'
 import { SyntheticEvent, useMemo, useState } from 'react'
 import CurationTaskCard from './components/CurationTaskCard'
 import FilteredByTaskIdsBanner from './components/FilteredByTaskIdsBanner'
+import FilterTasksButton from './components/FilterTasksButton'
 import sharedStyles from './components/shared.module.scss'
 
 enum CuratorDashboardTab {
@@ -26,7 +27,13 @@ function tabA11yProps(tab: CuratorDashboardTab) {
 }
 
 function TasksTabContent() {
-  const { request, taskIds, clearTaskIdsFilter } = useCurationTaskListFilters({
+  const {
+    request,
+    taskIds,
+    clearTaskIdsFilter,
+    stateFilter,
+    toggleStateFilter,
+  } = useCurationTaskListFilters({
     defaultAssignedToMe: true,
   })
 
@@ -47,6 +54,12 @@ function TasksTabContent() {
       <Typography variant="headline1">On Your Radar</Typography>
       <OpenInvitationsToUserCard cardProps={{ className: sharedStyles.card }} />
       <FilteredByTaskIdsBanner taskIds={taskIds} onClear={clearTaskIdsFilter} />
+      <Stack direction="row" justifyContent="flex-end">
+        <FilterTasksButton
+          stateFilter={stateFilter}
+          onToggleState={toggleStateFilter}
+        />
+      </Stack>
       <InfiniteTableLayout
         table={
           <Stack gap={3}>
