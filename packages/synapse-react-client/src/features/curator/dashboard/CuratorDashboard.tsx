@@ -4,6 +4,7 @@ import { useGetCurationTasksInfinite } from '@/synapse-queries/curation/task/use
 import { useCurationTaskListFilters } from '@/utils/hooks/useCurationTaskListFilters'
 import { Tab, Tabs, Typography } from '@mui/material'
 import Box from '@mui/material/Box'
+import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import { SyntheticEvent, useMemo, useState } from 'react'
 import CurationTaskCard from './components/CurationTaskCard'
@@ -93,6 +94,7 @@ export default function CuratorDashboardContent() {
           <Tab key={tab} value={tab} label={tab} {...tabA11yProps(tab)} />
         ))}
       </Tabs>
+      <Divider />
       <Box
         role="tabpanel"
         id={`curator-dashboard-tabpanel-${activeTab}`}
