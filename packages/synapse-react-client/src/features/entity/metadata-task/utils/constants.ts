@@ -9,6 +9,7 @@ import {
   TaskStatusStateEnum,
 } from '@sage-bionetworks/synapse-client'
 import { ComputeTaskConcreteType } from './types'
+import { DueDateFilterBucket } from './dueDate'
 
 export const OPEN_CURATOR_ERROR_TITLE =
   'An error occurred while trying to open Curator'
@@ -239,6 +240,15 @@ export const TASK_STATUS_CONFIG: Record<
   IN_REVIEW: { label: 'Needs Review', backgroundColor: '#B8CCFF' },
   COMPLETED: { label: 'Completed', backgroundColor: '#C8E6C9' },
   CANCELED: { label: 'Canceled', backgroundColor: '#FFCCBC' },
+}
+
+export const DUE_DATE_FILTER_BUCKET_CONFIG: Record<
+  DueDateFilterBucket,
+  { label: string; backgroundColor: string }
+> = {
+  NOT_DUE_SOON: { label: 'Not Due Soon', backgroundColor: '#E0E0E0' },
+  DUE_SOON: { label: 'Due Soon', backgroundColor: '#FFF9C4' },
+  PAST_DUE: { label: 'Past Due', backgroundColor: '#FFCDD2' },
 }
 
 /**

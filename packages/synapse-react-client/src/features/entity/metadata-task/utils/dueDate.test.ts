@@ -1,5 +1,11 @@
+import dayjs from 'dayjs'
 import { describe, it, expect } from 'vitest'
-import { dueDateInputToIso, isoToDueDateInput, parseDueDate } from './dueDate'
+import {
+  dueDateInputToIso,
+  getDueDateFilterBucket,
+  isoToDueDateInput,
+  parseDueDate,
+} from './dueDate'
 
 const JAN_1_2030_INPUT = '2030-01-01'
 const JAN_1_2030_ISO = '2030-01-01T00:00:00.000Z'
@@ -78,4 +84,54 @@ describe('parseDueDate', () => {
       process.env.TZ = originalTz
     },
   )
+})
+
+describe('getDueDateFilterBucket', () => {
+  const today = dayjs.utc('2030-01-01').startOf('day')
+
+  it('returns NOT_DUE_SOON when there is no due date', () => {
+    expect(getDueDateFilterBucket(undefined, 'IN_PROGRESS', today)).toBe(
+      'NOT_DUE_SOON',
+    )
+  })
+
+  it('returns NOT_DUE_SOON when the task is COMPLETED, even if the due date has passed', () => {
+    expect(getDueDateFilterBucket('2000-01-01', 'COMPLETED', today)).toBe(
+      'NOT_DUE_SOON',
+    )
+  })
+
+  it('returns NOT_DUE_SOON when the task is CANCELED, even if the due date has passed', () => {
+    expect(getDueDateFilterBucket('2000-01-01', 'CANCELED', today)).toBe(
+      'NOT_DUE_SOON',
+    )
+  })
+
+  it('returns PAST_DUE when the due date has already passed', () => {
+    expect(getDueDateFilterBucket('2029-12-31', 'IN_PROGRESS', today)).toBe(
+      'PAST_DUE',
+    )
+  })
+
+  it('returns DUE_SOON when the due date is within the threshold', () => {
+    expect(getDueDateFilterBucket('2030-01-15', 'IN_PROGRESS', today)).toBe(
+      'DUE_SOON',
+    )
+  })
+
+  it('returns NOT_DUE_SOON when the due date is exactly at the threshold', () => {
+    expect(getDueDateFilterBucket('2030-01-31', 'IN_PROGRESS', today)).toBe(
+      'NOT_DUE_SOON',
+    )
+  })
+
+  it('returns NOT_DUE_SOON when the due date is far in the future', () => {
+    expect(getDueDateFilterBucket('2099-01-01', 'IN_PROGRESS', today)).toBe(
+      'NOT_DUE_SOON',
+    )
+  })
+
+  it('defaults `today` to the current date when not provided', () => {
+    expect(getDueDateFilterBucket('2000-01-01', 'IN_PROGRESS')).toBe('PAST_DUE')
+  })
 })
