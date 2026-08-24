@@ -1,12 +1,15 @@
 import { TASK_STATUS_CONFIG } from '@/features/entity/metadata-task/utils/constants'
 import { ListCurationTaskRequestStateFilterEnum } from '@sage-bionetworks/synapse-client'
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined'
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
-import ListItemText from '@mui/material/ListItemText'
-import Menu from '@mui/material/Menu'
-import MenuItem from '@mui/material/MenuItem'
-import { MouseEvent, useId, useState } from 'react'
+import Collapse from '@mui/material/Collapse'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import FormGroup from '@mui/material/FormGroup'
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
+import { useId, useState } from 'react'
 
 export type FilterTasksButtonProps = {
   stateFilter: ListCurationTaskRequestStateFilterEnum[] | undefined
@@ -14,41 +17,48 @@ export type FilterTasksButtonProps = {
 }
 
 /**
- * Button that opens a menu of {@link ListCurationTaskRequestStateFilterEnum} values, allowing the
- * caller to toggle which task states are included in the curation task list.
+ * Button that toggles a box of curation task filter criteria. Currently offers a task state
+ * filter; more criteria (due date, task type, assignees) will be added as sections alongside it.
  */
 export default function FilterTasksButton(props: FilterTasksButtonProps) {
   const { stateFilter = [], onToggleState } = props
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
-  const menuId = useId()
+  const [expanded, setExpanded] = useState(false)
+  const panelId = useId()
 
   return (
-    <>
+    <Box>
       <Button
         variant="outlined"
         startIcon={<FilterAltOutlinedIcon />}
-        aria-haspopup="true"
-        aria-expanded={Boolean(anchorEl)}
-        aria-controls={anchorEl ? menuId : undefined}
-        onClick={(event: MouseEvent<HTMLElement>) =>
-          setAnchorEl(event.currentTarget)
-        }
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={() => setExpanded(prev => !prev)}
       >
         Filter Tasks By
       </Button>
-      <Menu
-        id={menuId}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        {Object.values(ListCurationTaskRequestStateFilterEnum).map(state => (
-          <MenuItem key={state} onClick={() => onToggleState(state)}>
-            <Checkbox checked={stateFilter.includes(state)} />
-            <ListItemText primary={TASK_STATUS_CONFIG[state].label} />
-          </MenuItem>
-        ))}
-      </Menu>
-    </>
+      <Collapse in={expanded} unmountOnExit>
+        <Paper id={panelId} variant="outlined" sx={{ p: 2, mt: 1 }}>
+          <Typography variant="subsectionHeader" component="p" gutterBottom>
+            Task State
+          </Typography>
+          <FormGroup>
+            {Object.values(ListCurationTaskRequestStateFilterEnum).map(
+              state => (
+                <FormControlLabel
+                  key={state}
+                  label={TASK_STATUS_CONFIG[state].label}
+                  control={
+                    <Checkbox
+                      checked={stateFilter.includes(state)}
+                      onChange={() => onToggleState(state)}
+                    />
+                  }
+                />
+              ),
+            )}
+          </FormGroup>
+        </Paper>
+      </Collapse>
+    </Box>
   )
 }

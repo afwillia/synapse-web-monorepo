@@ -1,5 +1,5 @@
 import { ListCurationTaskRequestStateFilterEnum } from '@sage-bionetworks/synapse-client'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import FilterTasksButton from './FilterTasksButton'
@@ -15,7 +15,15 @@ describe('FilterTasksButton', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens a menu with an option for every ListCurationTaskRequestStateFilterEnum value', async () => {
+  it('does not show the filter criteria box until the button is clicked', () => {
+    render(
+      <FilterTasksButton stateFilter={undefined} onToggleState={vi.fn()} />,
+    )
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('shows a checkbox for every ListCurationTaskRequestStateFilterEnum value when the button is clicked', async () => {
     const user = userEvent.setup()
     render(
       <FilterTasksButton stateFilter={undefined} onToggleState={vi.fn()} />,
@@ -23,13 +31,30 @@ describe('FilterTasksButton', () => {
 
     await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
 
-    await screen.findByRole('menu')
-    expect(screen.getAllByRole('menuitem')).toHaveLength(
+    expect(await screen.findAllByRole('checkbox')).toHaveLength(
       Object.values(ListCurationTaskRequestStateFilterEnum).length,
     )
   })
 
-  it('checks the checkbox for states included in stateFilter', async () => {
+  it('hides the filter criteria box when the button is clicked again', async () => {
+    const user = userEvent.setup()
+    render(
+      <FilterTasksButton stateFilter={undefined} onToggleState={vi.fn()} />,
+    )
+    const button = screen.getByRole('button', { name: /filter tasks by/i })
+
+    await user.click(button)
+    expect(await screen.findAllByRole('checkbox')).toHaveLength(
+      Object.values(ListCurationTaskRequestStateFilterEnum).length,
+    )
+
+    await user.click(button)
+    await waitFor(() => {
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    })
+  })
+
+  it('checks the checkboxes for states included in stateFilter', async () => {
     const user = userEvent.setup()
     render(
       <FilterTasksButton
@@ -40,10 +65,32 @@ describe('FilterTasksButton', () => {
 
     await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
 
-    const inReviewMenuItem = screen.getByRole('menuitem', {
-      name: /needs review/i,
-    })
-    expect(within(inReviewMenuItem).getByRole('checkbox')).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: /needs review/i }),
+    ).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: /completed/i }),
+    ).not.toBeChecked()
+  })
+
+  it('allows selecting more than one state at once', async () => {
+    const user = userEvent.setup()
+    render(
+      <FilterTasksButton
+        stateFilter={[
+          ListCurationTaskRequestStateFilterEnum.IN_REVIEW,
+          ListCurationTaskRequestStateFilterEnum.COMPLETED,
+        ]}
+        onToggleState={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
+
+    expect(
+      screen.getByRole('checkbox', { name: /needs review/i }),
+    ).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /completed/i })).toBeChecked()
   })
 
   it('calls onToggleState with the clicked state', async () => {
@@ -57,7 +104,7 @@ describe('FilterTasksButton', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
-    await user.click(screen.getByRole('menuitem', { name: /completed/i }))
+    await user.click(screen.getByRole('checkbox', { name: /completed/i }))
 
     expect(onToggleState).toHaveBeenCalledWith(
       ListCurationTaskRequestStateFilterEnum.COMPLETED,

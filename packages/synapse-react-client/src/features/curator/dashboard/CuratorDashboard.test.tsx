@@ -327,7 +327,7 @@ describe('CuratorDashboard', () => {
       renderWithRouter()
 
       await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
-      await user.click(screen.getByRole('menuitem', { name: /completed/i }))
+      await user.click(screen.getByRole('checkbox', { name: /completed/i }))
 
       await waitFor(() => {
         expect(mockUseGetCurationTasksInfinite).toHaveBeenLastCalledWith(
@@ -349,7 +349,7 @@ describe('CuratorDashboard', () => {
       renderWithRouter({ initialEntry: '/?stateFilter=COMPLETED' })
 
       await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
-      await user.click(screen.getByRole('menuitem', { name: /completed/i }))
+      await user.click(screen.getByRole('checkbox', { name: /completed/i }))
 
       await waitFor(() => {
         expect(mockUseGetCurationTasksInfinite).toHaveBeenLastCalledWith(
