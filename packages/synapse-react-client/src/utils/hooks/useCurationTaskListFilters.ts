@@ -1,8 +1,12 @@
 import {
   CURATION_TASK_LIST_ASSIGNED_TO_ME_QUERY_PARAM,
+  CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM,
   GRID_PAGE_TASK_ID_QUERY_PARAM,
 } from '@/utils/SynapseConstants'
-import { ListCurationTaskRequest } from '@sage-bionetworks/synapse-client'
+import {
+  ListCurationTaskRequest,
+  ListCurationTaskRequestStateFilterEnum,
+} from '@sage-bionetworks/synapse-client'
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 
@@ -33,6 +37,31 @@ export function parseAssignedToMeSearchParam(
   return rawValue === null ? defaultValue : rawValue === 'true'
 }
 
+const STATE_FILTER_VALUES = Object.values(
+  ListCurationTaskRequestStateFilterEnum,
+)
+
+/**
+ * Parses the `stateFilter` URL search param value (a comma-separated list of `ListCurationTaskRequestStateFilterEnum`
+ * values) into an array, filtering out any entries that aren't a recognized state. Returns `undefined` if the value
+ * is empty/absent or none of the entries are recognized.
+ */
+export function parseStateFilterSearchParam(
+  rawValue: string | null,
+): ListCurationTaskRequestStateFilterEnum[] | undefined {
+  if (!rawValue) {
+    return undefined
+  }
+  const states = rawValue
+    .split(',')
+    .filter((value): value is ListCurationTaskRequestStateFilterEnum =>
+      STATE_FILTER_VALUES.includes(
+        value as ListCurationTaskRequestStateFilterEnum,
+      ),
+    )
+  return states.length > 0 ? states : undefined
+}
+
 export type UseCurationTaskListFiltersInit = {
   /** The project to scope the task list to. If omitted, results are aggregated across projects. */
   projectId?: string
@@ -50,6 +79,10 @@ export type UseCurationTaskListFiltersResult = {
   setAssignedToMe: (assignedToMe: boolean) => void
   /** Removes the `taskIds` filter from the URL. */
   clearTaskIdsFilter: () => void
+  /** The task states parsed from the `stateFilter` URL search param, or `undefined` if not present. */
+  stateFilter: ListCurationTaskRequestStateFilterEnum[] | undefined
+  /** Adds `state` to the `stateFilter` URL search param if absent, otherwise removes it. */
+  toggleStateFilter: (state: ListCurationTaskRequestStateFilterEnum) => void
 }
 
 /**
@@ -101,13 +134,47 @@ export function useCurationTaskListFilters(
     })
   }, [setSearchParams])
 
+  const stateFilterParam = searchParams.get(
+    CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM,
+  )
+  const stateFilter = useMemo(
+    () => parseStateFilterSearchParam(stateFilterParam),
+    [stateFilterParam],
+  )
+
+  const toggleStateFilter = useCallback(
+    (state: ListCurationTaskRequestStateFilterEnum) => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        const current =
+          parseStateFilterSearchParam(
+            prev.get(CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM),
+          ) ?? []
+        const updated = current.includes(state)
+          ? current.filter(s => s !== state)
+          : [...current, state]
+        if (updated.length > 0) {
+          next.set(
+            CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM,
+            updated.join(','),
+          )
+        } else {
+          next.delete(CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM)
+        }
+        return next
+      })
+    },
+    [setSearchParams],
+  )
+
   const request = useMemo<ListCurationTaskRequest>(
     () => ({
       projectId,
       assignedToMe,
       taskIds,
+      stateFilter,
     }),
-    [projectId, assignedToMe, taskIds],
+    [projectId, assignedToMe, taskIds, stateFilter],
   )
 
   return {
@@ -116,5 +183,7 @@ export function useCurationTaskListFilters(
     assignedToMe,
     setAssignedToMe,
     clearTaskIdsFilter,
+    stateFilter,
+    toggleStateFilter,
   }
 }

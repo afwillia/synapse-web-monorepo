@@ -1,7 +1,9 @@
+import { ListCurationTaskRequestStateFilterEnum } from '@sage-bionetworks/synapse-client'
 import { act, renderHook } from '@testing-library/react'
 import { PropsWithChildren } from 'react'
 import { MemoryRouter, useLocation } from 'react-router'
 import {
+  parseStateFilterSearchParam,
   parseTaskIdsSearchParam,
   useCurationTaskListFilters,
 } from './useCurationTaskListFilters'
@@ -43,6 +45,45 @@ describe('parseTaskIdsSearchParam', () => {
   it('filters out non-numeric entries', () => {
     expect(parseTaskIdsSearchParam('123,abc,456')).toEqual([123, 456])
   })
+})
+
+describe('parseStateFilterSearchParam', () => {
+  it('returns undefined when the value is null', () => {
+    expect(parseStateFilterSearchParam(null)).toBeUndefined()
+  })
+
+  it('returns undefined when the value is an empty string', () => {
+    expect(parseStateFilterSearchParam('')).toBeUndefined()
+  })
+
+  it('parses a single recognized state', () => {
+    expect(parseStateFilterSearchParam('IN_REVIEW')).toEqual(['IN_REVIEW'])
+  })
+
+  it('parses comma-separated recognized states', () => {
+    expect(parseStateFilterSearchParam('IN_REVIEW,COMPLETED')).toEqual([
+      'IN_REVIEW',
+      'COMPLETED',
+    ])
+  })
+
+  it('filters out unrecognized entries', () => {
+    expect(parseStateFilterSearchParam('IN_REVIEW,BOGUS,COMPLETED')).toEqual([
+      'IN_REVIEW',
+      'COMPLETED',
+    ])
+  })
+
+  it('returns undefined when no entries are recognized', () => {
+    expect(parseStateFilterSearchParam('BOGUS')).toBeUndefined()
+  })
+
+  it.each(Object.values(ListCurationTaskRequestStateFilterEnum))(
+    'parses every ListCurationTaskRequestStateFilterEnum value: %s',
+    state => {
+      expect(parseStateFilterSearchParam(state)).toEqual([state])
+    },
+  )
 })
 
 describe('useCurationTaskListFilters', () => {
@@ -125,5 +166,81 @@ describe('useCurationTaskListFilters', () => {
 
     expect(result.current.taskIds).toBeUndefined()
     expect(result.current.request.taskIds).toBeUndefined()
+  })
+
+  describe('stateFilter', () => {
+    it('defaults to undefined', () => {
+      const { result } = renderWithRouter()
+
+      expect(result.current.stateFilter).toBeUndefined()
+      expect(result.current.request.stateFilter).toBeUndefined()
+    })
+
+    it('parses stateFilter from the URL search params into the request', () => {
+      const { result } = renderWithRouter(
+        {},
+        '/?stateFilter=IN_REVIEW,COMPLETED',
+      )
+
+      expect(result.current.stateFilter).toEqual(['IN_REVIEW', 'COMPLETED'])
+      expect(result.current.request.stateFilter).toEqual([
+        'IN_REVIEW',
+        'COMPLETED',
+      ])
+    })
+
+    it('adds a state to the URL via toggleStateFilter when absent', () => {
+      const { result } = renderWithRouter()
+
+      act(() => {
+        result.current.toggleStateFilter(
+          ListCurationTaskRequestStateFilterEnum.IN_REVIEW,
+        )
+      })
+
+      expect(result.current.stateFilter).toEqual(['IN_REVIEW'])
+      expect(result.current.search).toBe('?stateFilter=IN_REVIEW')
+    })
+
+    it('appends an additional state without removing existing ones', () => {
+      const { result } = renderWithRouter({}, '/?stateFilter=IN_REVIEW')
+
+      act(() => {
+        result.current.toggleStateFilter(
+          ListCurationTaskRequestStateFilterEnum.COMPLETED,
+        )
+      })
+
+      expect(result.current.stateFilter).toEqual(['IN_REVIEW', 'COMPLETED'])
+    })
+
+    it('removes a state from the URL via toggleStateFilter when present', () => {
+      const { result } = renderWithRouter(
+        {},
+        '/?stateFilter=IN_REVIEW,COMPLETED',
+      )
+
+      act(() => {
+        result.current.toggleStateFilter(
+          ListCurationTaskRequestStateFilterEnum.IN_REVIEW,
+        )
+      })
+
+      expect(result.current.stateFilter).toEqual(['COMPLETED'])
+      expect(result.current.search).toBe('?stateFilter=COMPLETED')
+    })
+
+    it('removes the stateFilter URL param entirely when the last state is toggled off', () => {
+      const { result } = renderWithRouter({}, '/?stateFilter=IN_REVIEW')
+
+      act(() => {
+        result.current.toggleStateFilter(
+          ListCurationTaskRequestStateFilterEnum.IN_REVIEW,
+        )
+      })
+
+      expect(result.current.stateFilter).toBeUndefined()
+      expect(result.current.search).toBe('')
+    })
   })
 })

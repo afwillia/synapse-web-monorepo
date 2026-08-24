@@ -227,6 +227,7 @@ export const GRID_PAGE_TASK_ID_QUERY_PARAM = 'taskIds'
 
 // Curation Task List URL Query Parameters
 export const CURATION_TASK_LIST_ASSIGNED_TO_ME_QUERY_PARAM = 'assignedToMe'
+export const CURATION_TASK_LIST_STATE_FILTER_QUERY_PARAM = 'stateFilter'
 
 // Search Page URL Query Parameters
 export const SEARCH_PAGE_QUERY_PARAM = 'query'
