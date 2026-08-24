@@ -1,5 +1,6 @@
 import InfiniteTableLayout from '@/components/layout/InfiniteTableLayout'
 import OpenInvitationsToUserCard from '@/features/team/invitation/components/OpenInvitationsToUserCard'
+import { getDueDateFilterBucket } from '@/features/entity/metadata-task/utils/dueDate'
 import { useGetCurationTasksInfinite } from '@/synapse-queries/curation/task/useCurationTask'
 import { useCurationTaskListFilters } from '@/utils/hooks/useCurationTaskListFilters'
 import { Tab, Tabs, Typography } from '@mui/material'
@@ -9,7 +10,9 @@ import Stack from '@mui/material/Stack'
 import { SyntheticEvent, useMemo, useState } from 'react'
 import CurationTaskCard from './components/CurationTaskCard'
 import FilteredByTaskIdsBanner from './components/FilteredByTaskIdsBanner'
-import FilterTasksButton from './components/FilterTasksButton'
+import FilterTasksButton, {
+  DueDateFilterValue,
+} from './components/FilterTasksButton'
 import sharedStyles from './components/shared.module.scss'
 
 enum CuratorDashboardTab {
@@ -45,9 +48,22 @@ function TasksTabContent() {
     fetchNextPage,
   } = useGetCurationTasksInfinite(request)
 
+  const [dueDateFilter, setDueDateFilter] = useState<DueDateFilterValue>('ALL')
+
   const tasks = useMemo(() => {
-    return curationTasks?.pages.flatMap(page => page.bundlePage ?? []) ?? []
-  }, [curationTasks])
+    const allTasks =
+      curationTasks?.pages.flatMap(page => page.bundlePage ?? []) ?? []
+    if (dueDateFilter === 'ALL') {
+      return allTasks
+    }
+    return allTasks.filter(
+      taskBundle =>
+        getDueDateFilterBucket(
+          taskBundle.task?.dueDate,
+          taskBundle.status?.state,
+        ) === dueDateFilter,
+    )
+  }, [curationTasks, dueDateFilter])
 
   return (
     <Stack gap={4}>
@@ -58,6 +74,8 @@ function TasksTabContent() {
         <FilterTasksButton
           stateFilter={stateFilter}
           onToggleState={toggleStateFilter}
+          dueDateFilter={dueDateFilter}
+          onDueDateFilterChange={setDueDateFilter}
         />
       </Stack>
       <InfiniteTableLayout

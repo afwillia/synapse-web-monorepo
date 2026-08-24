@@ -16,17 +16,19 @@ import {
 import classNames from 'classnames'
 import { ReactNode, useState } from 'react'
 import { useNavigate } from 'react-router'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import useGetEntityBundle from '@/synapse-queries/entity/useEntityBundle'
-import { TASK_STATUS_CONFIG } from '@/features/entity/metadata-task/utils/constants'
-import { parseDueDate } from '@/features/entity/metadata-task/utils/dueDate'
+import {
+  DUE_DATE_FILTER_BUCKET_CONFIG,
+  TASK_STATUS_CONFIG,
+} from '@/features/entity/metadata-task/utils/constants'
+import {
+  getDueDateFilterBucket,
+  parseDueDate,
+} from '@/features/entity/metadata-task/utils/dueDate'
 import styles from './CurationTaskCard.module.scss'
 import sharedStyles from './shared.module.scss'
 import UserOrTeamChip from './UserOrTeamChip'
-
-dayjs.extend(utc)
 
 function TaskTypeChip(props: { label: string }) {
   const { label } = props
@@ -62,19 +64,8 @@ function DueDateChip(props: {
   if (!dueDateObj) return null
 
   const formattedDate = dueDateObj.format('MM/DD/YY')
-  const isTerminal =
-    taskState === TaskStatusStateEnum.COMPLETED ||
-    taskState === TaskStatusStateEnum.CANCELED
-
-  let backgroundColor = '#E0E0E0'
-  if (!isTerminal) {
-    const daysUntilDue = dueDateObj.diff(dayjs.utc().startOf('day'), 'day')
-    if (daysUntilDue < 0) {
-      backgroundColor = '#FFCDD2'
-    } else if (daysUntilDue < 30) {
-      backgroundColor = '#FFF9C4'
-    }
-  }
+  const { backgroundColor } =
+    DUE_DATE_FILTER_BUCKET_CONFIG[getDueDateFilterBucket(dueDate, taskState)]
 
   return (
     <Chip

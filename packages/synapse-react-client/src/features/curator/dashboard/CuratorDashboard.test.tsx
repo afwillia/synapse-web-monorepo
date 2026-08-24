@@ -359,6 +359,71 @@ describe('CuratorDashboard', () => {
     })
   })
 
+  describe('due date filter', () => {
+    it('shows only tasks matching the selected due date bucket', async () => {
+      const user = userEvent.setup()
+      const pastDueTaskBundle = createMockTaskBundle(
+        { projectId: 'syn123', dueDate: '2000-01-01' },
+        { state: 'IN_PROGRESS' },
+      )
+      const notDueSoonTaskBundle = createMockTaskBundle(
+        { projectId: 'syn456', dueDate: '2099-01-01' },
+        { state: 'IN_PROGRESS' },
+      )
+      if (pastDueTaskBundle.task && notDueSoonTaskBundle.task) {
+        pastDueTaskBundle.task.taskId = 123
+        notDueSoonTaskBundle.task.taskId = 456
+      }
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: {
+          pages: [{ bundlePage: [pastDueTaskBundle, notDueSoonTaskBundle] }],
+        },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+
+      renderWithRouter()
+
+      expect(screen.getByTestId('task-card-123')).toBeInTheDocument()
+      expect(screen.getByTestId('task-card-456')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
+      await user.click(screen.getByRole('radio', { name: 'Past Due' }))
+
+      expect(screen.getByTestId('task-card-123')).toBeInTheDocument()
+      expect(screen.queryByTestId('task-card-456')).not.toBeInTheDocument()
+    })
+
+    it('shows all tasks again when the "All" option is selected', async () => {
+      const user = userEvent.setup()
+      const pastDueTaskBundle = createMockTaskBundle(
+        { projectId: 'syn123', dueDate: '2000-01-01' },
+        { state: 'IN_PROGRESS' },
+      )
+      if (pastDueTaskBundle.task) {
+        pastDueTaskBundle.task.taskId = 123
+      }
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: { pages: [{ bundlePage: [pastDueTaskBundle] }] },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+
+      renderWithRouter()
+
+      await user.click(screen.getByRole('button', { name: /filter tasks by/i }))
+      await user.click(screen.getByRole('radio', { name: 'Not Due Soon' }))
+      expect(screen.queryByTestId('task-card-123')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('radio', { name: 'All' }))
+      expect(screen.getByTestId('task-card-123')).toBeInTheDocument()
+    })
+  })
+
   describe('rendering tasks', () => {
     it('renders task cards when tasks are returned', async () => {
       mockUseGetCurationTasksInfinite.mockReturnValue({
