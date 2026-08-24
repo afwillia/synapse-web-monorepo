@@ -76,6 +76,51 @@ describe('CuratorDashboard', () => {
     expect(screen.getByText('On Your Radar')).toBeInTheDocument()
   })
 
+  describe('tabs', () => {
+    beforeEach(() => {
+      mockUseGetCurationTasksInfinite.mockReturnValue({
+        data: { pages: [] },
+        isLoading: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as any)
+    })
+
+    it('renders a tab for Tasks, Projects, Datasets, and Metrics', () => {
+      renderWithRouter()
+
+      expect(screen.getByRole('tab', { name: 'Tasks' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Projects' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Datasets' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Metrics' })).toBeInTheDocument()
+    })
+
+    it('shows the Tasks tab content by default', () => {
+      renderWithRouter()
+
+      expect(screen.getByRole('tab', { name: 'Tasks' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(screen.getByText('On Your Radar')).toBeInTheDocument()
+    })
+
+    it('shows placeholder content and hides the Tasks content when another tab is selected', async () => {
+      const user = userEvent.setup()
+      renderWithRouter()
+
+      await user.click(screen.getByRole('tab', { name: 'Projects' }))
+
+      expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(screen.queryByText('On Your Radar')).not.toBeInTheDocument()
+      expect(screen.getByText('Projects coming soon.')).toBeInTheDocument()
+    })
+  })
+
   it('renders open invitations card', () => {
     mockUseGetCurationTasksInfinite.mockReturnValue({
       data: { pages: [] },
