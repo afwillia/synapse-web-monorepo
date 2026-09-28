@@ -32,7 +32,12 @@ export type ReorderColumnsDialogProps = {
   upsertKey?: string[]
   /** Recordset-sourced grids only -- views do not support hiding/removing columns from display. */
   canRemoveColumns?: boolean
-  onSave: (newColumnOrder: number[]) => void
+  /**
+   * Called with the new display order, and the identity indices the dialog listed when it opened.
+   * The order only accounts for those columns, so the caller must preserve any other column in the
+   * grid rather than reading its absence as a removal.
+   */
+  onSave: (newColumnOrder: number[], coveredColumnIndices: number[]) => void
   onCancel: () => void
 }
 
@@ -58,16 +63,25 @@ export default function ReorderColumnsDialog(props: ReorderColumnsDialogProps) {
       ).filter(index => !columnOrder.includes(index))
     : []
 
-  const [workingOrder, setWorkingOrder] = useState<number[]>([
+  // Captured at open, because columnOrder can grow while the dialog is up: the grid gains a column
+  // whenever the hub or another user adds one, and the list on screen keeps the columns it started
+  // with. Saving must not speak for columns the user never saw.
+  const [coveredColumnIndices] = useState<number[]>(() => [
     ...columnOrder,
     ...previouslyRemovedColumnIndices,
   ])
+  const [workingOrder, setWorkingOrder] =
+    useState<number[]>(coveredColumnIndices)
   const [removedColumnIndices, setRemovedColumnIndices] = useState<number[]>(
     previouslyRemovedColumnIndices,
   )
 
   const defaultOrder = useMemo(
-    () => computeDefaultColumnOrder(columnNames, jsonSchema, upsertKey),
+    () =>
+      getNamedColumnIndices(
+        columnNames,
+        computeDefaultColumnOrder(columnNames, jsonSchema, upsertKey),
+      ),
     [columnNames, jsonSchema, upsertKey],
   )
 
@@ -191,6 +205,7 @@ export default function ReorderColumnsDialog(props: ReorderColumnsDialogProps) {
       onConfirm={() =>
         onSave(
           workingOrder.filter(index => !removedColumnIndices.includes(index)),
+          coveredColumnIndices,
         )
       }
       onCancel={onCancel}

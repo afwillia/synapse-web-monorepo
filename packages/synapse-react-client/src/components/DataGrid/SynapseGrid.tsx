@@ -7,6 +7,7 @@ import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid
 import SyncGridWithSourceButton from '@/components/DataGrid/SyncGridWithSourceButton'
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
 import { getNamedColumnIndices } from '@/components/DataGrid/utils/getNamedColumnIndices'
+import { mergeReorderedColumnOrder } from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
 import { SynapseErrorBoundary } from '@/components/error/ErrorBanner'
 import { SkeletonTable } from '@/components/index'
@@ -358,10 +359,20 @@ function SynapseGridInner({
   )
 
   const handleReorderColumns = useCallback(
-    (newColumnOrder: number[]) => {
+    (newColumnOrder: number[], coveredColumnIndices: number[]) => {
       if (!model) return
+      // REORDER_COLUMNS replaces columnOrder wholesale, so read the live order to carry over the
+      // columns the reorder UI never listed -- reading the snapshot at save time also picks up
+      // anything that arrived while the dialog was open.
       applyAndCommitChanges(model, [
-        { type: 'REORDER_COLUMNS', newColumnOrder },
+        {
+          type: 'REORDER_COLUMNS',
+          newColumnOrder: mergeReorderedColumnOrder({
+            currentColumnOrder: model.api.getSnapshot().columnOrder,
+            reorderedColumnIndices: newColumnOrder,
+            coveredColumnIndices,
+          }),
+        },
       ])
     },
     [model, applyAndCommitChanges],

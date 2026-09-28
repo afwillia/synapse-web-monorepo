@@ -82,7 +82,7 @@ describe('ReorderColumnsDialog', () => {
     expect(getListItemNames()).toEqual(['a', 'b', 'c', 'extra'])
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([1, 0, 2, 3])
+    expect(onSave).toHaveBeenCalledWith([1, 0, 2, 3], [0, 1, 2, 3])
   })
 
   it('calls onCancel when Cancel is clicked, without calling onSave', async () => {
@@ -220,7 +220,7 @@ describe('ReorderColumnsDialog', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([0, 1, 2])
+    expect(onSave).toHaveBeenCalledWith([0, 1, 2], [0, 1, 2, 3])
   })
 
   it('disables the move buttons for a removed column', async () => {
@@ -268,7 +268,7 @@ describe('ReorderColumnsDialog', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([0, 1, 2, 3])
+    expect(onSave).toHaveBeenCalledWith([0, 1, 2, 3], [0, 1, 2, 3])
   })
 
   it('resetting to the default order also restores all removed columns', async () => {
@@ -343,7 +343,8 @@ describe('ReorderColumnsDialog', () => {
       await user.click(screen.getByRole('button', { name: 'Restore a' }))
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      expect(onSave).toHaveBeenCalledWith([0, 2, 3, 1])
+      // The previously removed column counts as covered -- the dialog listed it for restoring
+      expect(onSave).toHaveBeenCalledWith([0, 2, 3, 1], [0, 2, 3, 1])
     })
 
     it('does not offer to remove it again after being restored, since it is a schema column', async () => {
@@ -381,6 +382,59 @@ describe('ReorderColumnsDialog', () => {
       )
 
       expect(getListItemNames()).toEqual(['b', 'c', 'extra'])
+    })
+  })
+
+  describe('when the grid gains a column while the dialog is open', () => {
+    // The hub adds columns as other users and agents work, so the props can change under an open
+    // dialog. The list keeps the columns it opened with, so the save has to be scoped to those --
+    // otherwise the caller, which replaces columnOrder wholesale, would delete the new column.
+    function renderWithColumnAddedWhileOpen(onSave: () => void) {
+      const props = {
+        open: true,
+        jsonSchema,
+        canRemoveColumns: true,
+        onSave,
+        onCancel: vi.fn(),
+      }
+      const { rerender } = render(
+        <ReorderColumnsDialog
+          {...props}
+          columnNames={columnNames}
+          columnOrder={columnOrder}
+        />,
+      )
+      rerender(
+        <ReorderColumnsDialog
+          {...props}
+          columnNames={[...columnNames, 'added']}
+          columnOrder={[...columnOrder, 4]}
+        />,
+      )
+    }
+
+    it('reports the order as covering only the columns it listed', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderWithColumnAddedWhileOpen(onSave)
+
+      expect(getListItemNames()).toEqual(['b', 'a', 'c', 'extra'])
+
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(onSave).toHaveBeenCalledWith([0, 1, 2, 3], [0, 1, 2, 3])
+    })
+
+    it('does not claim the new column after reordering or removing another one', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderWithColumnAddedWhileOpen(onSave)
+
+      await user.click(screen.getByRole('button', { name: 'Move b down' }))
+      await user.click(screen.getByRole('button', { name: 'Remove extra' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(onSave).toHaveBeenCalledWith([1, 0, 2], [0, 1, 2, 3])
     })
   })
 
