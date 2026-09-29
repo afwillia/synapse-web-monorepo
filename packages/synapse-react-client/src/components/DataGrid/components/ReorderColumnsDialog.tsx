@@ -1,6 +1,7 @@
 import { ConfirmationDialog } from '@/components/ConfirmationDialog'
 import { computeDefaultColumnOrder } from '@/components/DataGrid/utils/computeDefaultColumnOrder'
-import { getNamedColumnIndices } from '@/components/DataGrid/utils/getNamedColumnIndices'
+import { getRenderableColumnIndices } from '@/components/DataGrid/utils/getRenderableColumnIndices'
+import { ColumnOrderChange } from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
 import { moveItem } from '@/utils/functions/ArrayUtils'
 import { collectTopLevelProperties } from '@/utils/jsonschema/collectTopLevelProperties'
 import {
@@ -33,11 +34,10 @@ export type ReorderColumnsDialogProps = {
   /** Recordset-sourced grids only -- views do not support hiding/removing columns from display. */
   canRemoveColumns?: boolean
   /**
-   * Called with the new display order, and the identity indices the dialog listed when it opened.
-   * The order only accounts for those columns, so the caller must preserve any other column in the
-   * grid rather than reading its absence as a removal.
+   * Called with the user's new order plus the columns it was decided against -- see
+   * `ColumnOrderChange`. The caller reconciles it with the grid's live order.
    */
-  onSave: (newColumnOrder: number[], coveredColumnIndices: number[]) => void
+  onSave: (change: ColumnOrderChange) => void
   onCancel: () => void
 }
 
@@ -57,28 +57,29 @@ export default function ReorderColumnsDialog(props: ReorderColumnsDialogProps) {
   // identity index still exists in columnNames -- surface them so they can be restored. Indices
   // without a name are skipped: there is nothing to label them with in the list.
   const previouslyRemovedColumnIndices = canRemoveColumns
-    ? getNamedColumnIndices(
+    ? getRenderableColumnIndices(
         columnNames,
         columnNames.map((_, index) => index),
       ).filter(index => !columnOrder.includes(index))
     : []
 
-  // Captured at open, because columnOrder can grow while the dialog is up: the grid gains a column
-  // whenever the hub or another user adds one, and the list on screen keeps the columns it started
-  // with. Saving must not speak for columns the user never saw.
-  const [coveredColumnIndices] = useState<number[]>(() => [
-    ...columnOrder,
-    ...previouslyRemovedColumnIndices,
-  ])
-  const [workingOrder, setWorkingOrder] =
-    useState<number[]>(coveredColumnIndices)
+  // Captured at open, because the grid's columns can change while the dialog is up -- the hub, an
+  // agent, or another user can add or remove one at any time -- while the list on screen keeps the
+  // columns it started with. Saving must only speak for those.
+  const [columnsAtOpen] = useState(() => ({
+    active: columnOrder,
+    listed: [...columnOrder, ...previouslyRemovedColumnIndices],
+  }))
+  const [workingOrder, setWorkingOrder] = useState<number[]>(
+    columnsAtOpen.listed,
+  )
   const [removedColumnIndices, setRemovedColumnIndices] = useState<number[]>(
     previouslyRemovedColumnIndices,
   )
 
   const defaultOrder = useMemo(
     () =>
-      getNamedColumnIndices(
+      getRenderableColumnIndices(
         columnNames,
         computeDefaultColumnOrder(columnNames, jsonSchema, upsertKey),
       ),
@@ -203,10 +204,13 @@ export default function ReorderColumnsDialog(props: ReorderColumnsDialogProps) {
       }
       confirmButtonProps={{ children: 'Save' }}
       onConfirm={() =>
-        onSave(
-          workingOrder.filter(index => !removedColumnIndices.includes(index)),
-          coveredColumnIndices,
-        )
+        onSave({
+          columnOrder: workingOrder.filter(
+            index => !removedColumnIndices.includes(index),
+          ),
+          listedColumnIndices: columnsAtOpen.listed,
+          activeColumnIndices: columnsAtOpen.active,
+        })
       }
       onCancel={onCancel}
     />

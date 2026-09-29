@@ -58,7 +58,11 @@ describe('ReorderColumnsButton', () => {
     await user.click(screen.getByRole('button', { name: 'Move a down' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onReorder).toHaveBeenCalledWith([1, 0], [0, 1])
+    expect(onReorder).toHaveBeenCalledWith({
+      columnOrder: [1, 0],
+      listedColumnIndices: [0, 1],
+      activeColumnIndices: [0, 1],
+    })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -131,7 +135,11 @@ describe('ReorderColumnsButton', () => {
     await user.click(screen.getByRole('button', { name: 'Remove a' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onReorder).toHaveBeenCalledWith([1], [0, 1])
+    expect(onReorder).toHaveBeenCalledWith({
+      columnOrder: [1],
+      listedColumnIndices: [0, 1],
+      activeColumnIndices: [0, 1],
+    })
   })
 
   it('offers to remove only the column that is not in the schema', async () => {

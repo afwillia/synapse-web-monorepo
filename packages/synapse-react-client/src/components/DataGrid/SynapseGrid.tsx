@@ -6,8 +6,11 @@ import UploadCsvToGridButton from '@/components/DataGrid/components/UploadCsvToG
 import useGetSchemaForGrid from '@/components/DataGrid/hooks/useGetSchemaForGrid'
 import SyncGridWithSourceButton from '@/components/DataGrid/SyncGridWithSourceButton'
 import computeReplicaSelectionModel from '@/components/DataGrid/utils/computeReplicaSelectionModel'
-import { getNamedColumnIndices } from '@/components/DataGrid/utils/getNamedColumnIndices'
-import { mergeReorderedColumnOrder } from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
+import { getRenderableColumnIndices } from '@/components/DataGrid/utils/getRenderableColumnIndices'
+import {
+  ColumnOrderChange,
+  mergeReorderedColumnOrder,
+} from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
 import modelRowsToGrid from '@/components/DataGrid/utils/modelRowsToGrid'
 import { SynapseErrorBoundary } from '@/components/error/ErrorBanner'
 import { SkeletonTable } from '@/components/index'
@@ -229,7 +232,8 @@ function SynapseGridInner({
   // `columnOrder` and `columnNames` separately, so a render can land on an order that references a
   // column whose name is not in the snapshot yet.
   const columnOrder = useMemo(
-    () => getNamedColumnIndices(columnNames, modelSnapshot?.columnOrder ?? []),
+    () =>
+      getRenderableColumnIndices(columnNames, modelSnapshot?.columnOrder ?? []),
     [columnNames, modelSnapshot?.columnOrder],
   )
 
@@ -359,19 +363,17 @@ function SynapseGridInner({
   )
 
   const handleReorderColumns = useCallback(
-    (newColumnOrder: number[], coveredColumnIndices: number[]) => {
+    (change: ColumnOrderChange) => {
       if (!model) return
-      // REORDER_COLUMNS replaces columnOrder wholesale, so read the live order to carry over the
-      // columns the reorder UI never listed -- reading the snapshot at save time also picks up
-      // anything that arrived while the dialog was open.
+      // Read the live order at save time: the dialog only speaks for the columns it listed when it
+      // opened, and the grid may have gained or lost columns since.
       applyAndCommitChanges(model, [
         {
           type: 'REORDER_COLUMNS',
-          newColumnOrder: mergeReorderedColumnOrder({
-            currentColumnOrder: model.api.getSnapshot().columnOrder,
-            reorderedColumnIndices: newColumnOrder,
-            coveredColumnIndices,
-          }),
+          newColumnOrder: mergeReorderedColumnOrder(
+            model.api.getSnapshot().columnOrder,
+            change,
+          ),
         },
       ])
     },

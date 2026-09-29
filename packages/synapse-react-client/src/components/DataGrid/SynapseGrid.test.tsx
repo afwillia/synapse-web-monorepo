@@ -153,6 +153,26 @@ describe('SynapseGrid', () => {
       expect(model.api.getSnapshot().columnOrder).toEqual([1, 0, 2])
     })
 
+    it('does not bring back a column removed elsewhere while the dialog was open', async () => {
+      const model = createModelWithColumns(['a', 'b', 'c'], [0, 1, 2])
+      const user = renderGridWithSession(model)
+
+      await user.click(
+        await screen.findByRole('button', { name: /reorder columns/i }),
+      )
+      // Another replica removes column b from the display order
+      act(() => {
+        model.api.arr(['columnOrder']).del(1, 1)
+      })
+      // The dialog still lists b, so c has to pass it to reach the front
+      await user.click(screen.getByRole('button', { name: 'Move c up' }))
+      await user.click(screen.getByRole('button', { name: 'Move c up' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      // The move is honored, and b stays removed instead of coming back
+      expect(model.api.getSnapshot().columnOrder).toEqual([2, 0])
+    })
+
     it('writes the reordered columns when nothing is missing from the order', async () => {
       const model = createModelWithColumns(['a', 'b', 'c'], [0, 1, 2])
       const user = renderGridWithSession(model)

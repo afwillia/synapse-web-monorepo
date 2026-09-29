@@ -8,6 +8,7 @@ import { s } from 'json-joy/lib/json-crdt-patch'
 import isEqual from 'lodash-es/isEqual'
 import { coerceModelCellValue } from './schemaAwarePasteValue'
 import { getEmptyValue } from './getEmptyValue'
+import { writeColumnOrder } from './writeColumnOrder'
 
 /**
  * Represents a change operation on the GridModel.
@@ -110,15 +111,7 @@ export function applyModelChange(
       break
     }
     case 'REORDER_COLUMNS': {
-      const columnOrderArr = model.api.arr(['columnOrder'])
-      const currentLength = columnOrderArr?.length() ?? 0
-      if (currentLength > 0) {
-        columnOrderArr?.del(0, currentLength)
-      }
-      columnOrderArr?.ins(
-        0,
-        change.newColumnOrder.map(index => s.con(index)),
-      )
+      writeColumnOrder(model, change.newColumnOrder)
       break
     }
   }

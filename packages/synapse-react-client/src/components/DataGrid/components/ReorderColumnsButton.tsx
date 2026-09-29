@@ -1,5 +1,6 @@
 import GridMenuButton from '@/components/DataGrid/components/GridMenuButton/GridMenuButton'
 import ReorderColumnsDialog from '@/components/DataGrid/components/ReorderColumnsDialog'
+import { ColumnOrderChange } from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
 import { SwapHoriz } from '@mui/icons-material'
 import { JSONSchema7 } from 'json-schema'
 import { useState } from 'react'
@@ -10,8 +11,7 @@ export type ReorderColumnsButtonProps = {
   jsonSchema: JSONSchema7 | undefined
   upsertKey?: string[]
   canRemoveColumns?: boolean
-  /** See `ReorderColumnsDialog`'s `onSave` for the meaning of `coveredColumnIndices`. */
-  onReorder: (newColumnOrder: number[], coveredColumnIndices: number[]) => void
+  onReorder: (change: ColumnOrderChange) => void
 }
 
 export default function ReorderColumnsButton(props: ReorderColumnsButtonProps) {
@@ -37,8 +37,8 @@ export default function ReorderColumnsButton(props: ReorderColumnsButtonProps) {
           jsonSchema={jsonSchema}
           upsertKey={upsertKey}
           canRemoveColumns={canRemoveColumns}
-          onSave={(newColumnOrder, coveredColumnIndices) => {
-            onReorder(newColumnOrder, coveredColumnIndices)
+          onSave={change => {
+            onReorder(change)
             setShowDialog(false)
           }}
           onCancel={() => setShowDialog(false)}

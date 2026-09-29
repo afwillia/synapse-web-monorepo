@@ -1,3 +1,4 @@
+import { ColumnOrderChange } from '@/components/DataGrid/utils/mergeReorderedColumnOrder'
 import { Meta, StoryObj } from '@storybook/react-vite'
 import ReorderColumnsDialog from './ReorderColumnsDialog'
 
@@ -17,7 +18,7 @@ const meta = {
         notes: { type: 'string' },
       },
     },
-    onSave: (newColumnOrder: number[]) => console.log('onSave', newColumnOrder),
+    onSave: (change: ColumnOrderChange) => console.log('onSave', change),
     onCancel: () => console.log('onCancel'),
   },
 } satisfies Meta<typeof ReorderColumnsDialog>

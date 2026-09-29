@@ -82,7 +82,11 @@ describe('ReorderColumnsDialog', () => {
     expect(getListItemNames()).toEqual(['a', 'b', 'c', 'extra'])
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([1, 0, 2, 3], [0, 1, 2, 3])
+    expect(onSave).toHaveBeenCalledWith({
+      columnOrder: [1, 0, 2, 3],
+      listedColumnIndices: [0, 1, 2, 3],
+      activeColumnIndices: [0, 1, 2, 3],
+    })
   })
 
   it('calls onCancel when Cancel is clicked, without calling onSave', async () => {
@@ -220,7 +224,11 @@ describe('ReorderColumnsDialog', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([0, 1, 2], [0, 1, 2, 3])
+    expect(onSave).toHaveBeenCalledWith({
+      columnOrder: [0, 1, 2],
+      listedColumnIndices: [0, 1, 2, 3],
+      activeColumnIndices: [0, 1, 2, 3],
+    })
   })
 
   it('disables the move buttons for a removed column', async () => {
@@ -268,7 +276,11 @@ describe('ReorderColumnsDialog', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(onSave).toHaveBeenCalledWith([0, 1, 2, 3], [0, 1, 2, 3])
+    expect(onSave).toHaveBeenCalledWith({
+      columnOrder: [0, 1, 2, 3],
+      listedColumnIndices: [0, 1, 2, 3],
+      activeColumnIndices: [0, 1, 2, 3],
+    })
   })
 
   it('resetting to the default order also restores all removed columns', async () => {
@@ -343,8 +355,13 @@ describe('ReorderColumnsDialog', () => {
       await user.click(screen.getByRole('button', { name: 'Restore a' }))
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      // The previously removed column counts as covered -- the dialog listed it for restoring
-      expect(onSave).toHaveBeenCalledWith([0, 2, 3, 1], [0, 2, 3, 1])
+      // The restored column is listed but was not active, which is how the caller tells a
+      // deliberate restore apart from a column removed elsewhere
+      expect(onSave).toHaveBeenCalledWith({
+        columnOrder: [0, 2, 3, 1],
+        listedColumnIndices: [0, 2, 3, 1],
+        activeColumnIndices: [0, 2, 3],
+      })
     })
 
     it('does not offer to remove it again after being restored, since it is a schema column', async () => {
@@ -422,7 +439,11 @@ describe('ReorderColumnsDialog', () => {
 
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      expect(onSave).toHaveBeenCalledWith([0, 1, 2, 3], [0, 1, 2, 3])
+      expect(onSave).toHaveBeenCalledWith({
+        columnOrder: [0, 1, 2, 3],
+        listedColumnIndices: [0, 1, 2, 3],
+        activeColumnIndices: [0, 1, 2, 3],
+      })
     })
 
     it('does not claim the new column after reordering or removing another one', async () => {
@@ -434,7 +455,11 @@ describe('ReorderColumnsDialog', () => {
       await user.click(screen.getByRole('button', { name: 'Remove extra' }))
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      expect(onSave).toHaveBeenCalledWith([1, 0, 2], [0, 1, 2, 3])
+      expect(onSave).toHaveBeenCalledWith({
+        columnOrder: [1, 0, 2],
+        listedColumnIndices: [0, 1, 2, 3],
+        activeColumnIndices: [0, 1, 2, 3],
+      })
     })
   })
 
