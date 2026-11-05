@@ -48,6 +48,7 @@ import {
 import { useErrorHandler } from 'react-error-boundary'
 import { SynapseSpinner } from '../LoadingScreen/LoadingScreen'
 import GridAgentChat from '../SynapseChat/GridAgentChat'
+import { HiddenValidationAlert } from './components/HiddenValidationAlert'
 import { ValidationAlert } from './components/ValidationAlert'
 import DataGrid from './DataGrid'
 import { DataGridRow, GridModel, Operation } from './DataGridTypes'
@@ -84,6 +85,7 @@ function SynapseGridInner({
   const [session, setSession] = useState<GridSession | null>(null)
   const [replicaId, setReplicaId] = useState<number | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [isValidationAlertHidden, setIsValidationAlertHidden] = useState(false)
   const [lastSelection, setLastSelection] = useState<SelectionWithId | null>(
     null,
   )
@@ -473,15 +475,18 @@ function SynapseGridInner({
             {/* Grid */}
             {hasCompletedInitialLoad && (
               <>
-                <Grid size={12}>
-                  <ValidationAlert
-                    rowValues={rowValues}
-                    columnNames={columnNames}
-                    columnOrder={columnOrder}
-                    onNavigateToCell={handleNavigateToCell}
-                    isLoading={!hasCompletedInitialSync}
-                  />
-                </Grid>
+                {!isValidationAlertHidden && (
+                  <Grid size={12}>
+                    <ValidationAlert
+                      rowValues={rowValues}
+                      columnNames={columnNames}
+                      columnOrder={columnOrder}
+                      onNavigateToCell={handleNavigateToCell}
+                      isLoading={!hasCompletedInitialSync}
+                      onHide={() => setIsValidationAlertHidden(true)}
+                    />
+                  </Grid>
+                )}
                 <Grid size={12}>
                   <Stack
                     direction={'row'}
@@ -503,16 +508,23 @@ function SynapseGridInner({
                         </Typography>
                       </Box>
                     )}
-                    <GridMenuButton
-                      variant="outlined"
-                      startIcon={<HelpOutline />}
-                      href="https://docs.synapse.org/synapse-docs/managing-metadata-with-curator"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ mr: 'auto' }}
-                    >
-                      Help and Instructions
-                    </GridMenuButton>
+                    <Stack direction="row" spacing={1} sx={{ mr: 'auto' }}>
+                      <GridMenuButton
+                        variant="outlined"
+                        startIcon={<HelpOutline />}
+                        href="https://docs.synapse.org/synapse-docs/managing-metadata-with-curator"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Help and Instructions
+                      </GridMenuButton>
+                      {isValidationAlertHidden && (
+                        <HiddenValidationAlert
+                          rowValues={rowValues}
+                          onShow={() => setIsValidationAlertHidden(false)}
+                        />
+                      )}
+                    </Stack>
                     {undoUI}
                     {redoUI}
                     <ReorderColumnsButton
